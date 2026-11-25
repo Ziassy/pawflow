@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist_Mono, Inter } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
+import { ServiceWorkerRegister } from "@/components/pwa";
 import "./globals.css";
 
 const inter = Inter({
@@ -18,6 +19,8 @@ export const metadata: Metadata = {
   description: "PawFlow — Track your spending, find your flow.",
   robots: { index: false, follow: false },
   appleWebApp: { capable: true, title: "PawFlow", statusBarStyle: "default" },
+  // iOS jangan mengubah nominal uang jadi tautan telepon
+  formatDetection: { telephone: false },
 };
 
 export const viewport: Viewport = {
@@ -35,15 +38,24 @@ export const viewport: Viewport = {
  */
 const IOS_VIEWPORT = `(function(){var n=navigator;if(!(/iPad|iPhone|iPod/.test(n.userAgent)||(n.platform==="MacIntel"&&n.maxTouchPoints>1)))return;function f(){var m=document.querySelector('meta[name=viewport]');if(m&&m.content.indexOf("maximum-scale")<0)m.content+=",maximum-scale=1";}f();document.addEventListener("DOMContentLoaded",f);})();`;
 
+/**
+ * Script di <head>: tangkap event "beforeinstallprompt" Chrome Android sedini mungkin.
+ * Event ini bisa muncul sebelum React selesai dimuat, jadi disimpan di window untuk tombol Pasang
+ * (InstallApp di components/pwa.tsx).
+ */
+const PWA_HEAD_SCRIPT = `(function(){window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();window.__pawflowInstall=e;window.dispatchEvent(new Event("pawflow:installable"));});window.addEventListener("appinstalled",function(){window.__pawflowInstall=null;window.dispatchEvent(new Event("pawflow:installable"));});})();`;
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="id" className={`${inter.variable} ${geistMono.variable} h-full scroll-smooth antialiased`}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: IOS_VIEWPORT }} />
+        <script dangerouslySetInnerHTML={{ __html: PWA_HEAD_SCRIPT }} />
       </head>
       <body className="min-h-full">
         {children}
         <Toaster richColors position="top-center" />
+        <ServiceWorkerRegister />
       </body>
     </html>
   );

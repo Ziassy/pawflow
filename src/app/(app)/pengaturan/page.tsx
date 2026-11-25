@@ -7,6 +7,7 @@ import { CategoryTargets } from "./category-targets";
 import { TemplateEditor } from "./template-editor";
 import { GeneralSettings, NameListEditor } from "./general-settings";
 import { BackupRestore } from "./data-tools";
+import { InstallApp } from "@/components/pwa";
 
 export const metadata: Metadata = { title: "Pengaturan" };
 
@@ -60,6 +61,9 @@ export default async function PengaturanPage() {
         </Panel>
         <Panel title="Backup & pulihkan" description="Juga dipakai untuk memindahkan data ke server (Neon).">
           <BackupRestore />
+        </Panel>
+        <Panel title="Pasang di HP" description="Android, iPhone, dan iPad.">
+          <InstallApp />
         </Panel>
       </div>
     </>
