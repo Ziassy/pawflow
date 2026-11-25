@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ageAt, allocateFromSalary, fire, monthsUntilAge } from "./fire";
+import { ageAt, ageAtMonth, allocateFromSalary, fire, goalPlan, goalTimeline, monthAtAge, monthsUntilAge } from "./fire";
 
 describe("usia", () => {
   it("usia penuh", () => {
@@ -47,5 +47,41 @@ describe("allocateFromSalary", () => {
     expect(m.get(1)).toEqual({ fromSalary: 1_000_000, extra: 0 });
     expect(m.get(2)).toEqual({ fromSalary: 1_500_000, extra: 500_000 });
     expect(m.get(3)).toEqual({ fromSalary: 0, extra: 0 });
+  });
+});
+
+describe("goalTimeline", () => {
+  const base = { startMonth: null, deadline: null, targetAge: null, birthMonth: null, current: "2026-11" };
+
+  it("mulai umur 30, FIRE umur 40 -> 120 bulan", () => {
+    expect(monthAtAge("1996-01", 40)).toBe("2036-01");
+    expect(ageAtMonth("1996-01", "2026-01")).toBe(30);
+    const t = goalTimeline({ ...base, startMonth: "2026-01", targetAge: 40, birthMonth: "1996-01" });
+    expect(t).toEqual({ deadline: "2036-01", totalMonths: 120, elapsedMonths: 10, monthsLeft: 110 });
+  });
+
+  it("tenggat yang diisi menang atas usia target", () => {
+    const t = goalTimeline({ ...base, startMonth: "2026-11", deadline: "2027-03", targetAge: 40, birthMonth: "1996-01" });
+    expect(t.deadline).toBe("2027-03");
+    expect(t.totalMonths).toBe(4);
+  });
+
+  it("mulai di masa depan: sisa bulan dihitung dari bulan mulai", () => {
+    const t = goalTimeline({ ...base, startMonth: "2027-01", deadline: "2028-01" });
+    expect(t).toEqual({ deadline: "2028-01", totalMonths: 12, elapsedMonths: 0, monthsLeft: 12 });
+  });
+
+  it("tanpa bulan mulai: perilaku lama (dari bulan berjalan)", () => {
+    const t = goalTimeline({ ...base, deadline: "2027-03" });
+    expect(t).toEqual({ deadline: "2027-03", totalMonths: null, elapsedMonths: null, monthsLeft: 4 });
+  });
+
+  it("tanpa tenggat dan tanpa usia: kosong", () => {
+    expect(goalTimeline({ ...base, startMonth: "2026-01" }).monthsLeft).toBeNull();
+  });
+
+  it("rencana awal dan seharusnya terkumpul", () => {
+    const t = goalTimeline({ ...base, startMonth: "2026-01", targetAge: 40, birthMonth: "1996-01" });
+    expect(goalPlan(1_200_000_000, t)).toEqual({ plannedMonthly: 10_000_000, expectedNow: 100_000_000 });
   });
 });

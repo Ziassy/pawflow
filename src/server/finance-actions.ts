@@ -418,6 +418,7 @@ export async function deletePhysicalAsset(id: number) {
 const zGoal = z.object({
   name: zName,
   targetAmount: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+  startMonth: zMonth.nullable(),
   deadline: zMonth.nullable(),
   collectedMode: z.enum(GOAL_COLLECTED_MODE),
   manualCollected: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
@@ -430,6 +431,7 @@ export async function saveGoal(id: number | null, input: z.input<typeof zGoal>) 
   return run(async () => {
     const d = zGoal.parse(input);
     if (d.collectedMode === "ASSET_TYPE" && !d.assetTypeId) throw new Error("Pilih jenis aset untuk mode otomatis");
+    if (d.startMonth && d.deadline && d.deadline <= d.startMonth) throw new Error("Tenggat harus setelah bulan mulai");
     const data = { ...d, targetAmount: BigInt(d.targetAmount), manualCollected: BigInt(d.manualCollected) };
     if (id) await db.goal.update({ where: { id }, data });
     else {
