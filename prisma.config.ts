@@ -7,7 +7,10 @@ export default defineConfig({
     path: "prisma/migrations",
     seed: "tsx prisma/seed.ts",
   },
+  // CLI (migrate) memakai DIRECT_URL bila ada: koneksi langsung Neon tanpa pooler,
+  // karena migrasi memakai advisory lock yang tidak cocok dengan PgBouncer.
+  // App (runtime) tetap memakai DATABASE_URL (pooled), lihat src/lib/db.ts.
   datasource: {
-    url: env("DATABASE_URL"),
+    url: process.env.DIRECT_URL || env("DATABASE_URL"),
   },
 });
