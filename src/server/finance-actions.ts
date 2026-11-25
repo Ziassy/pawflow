@@ -9,6 +9,7 @@ import { valueByAssetType } from "@/lib/investment";
 import { zMonth } from "@/lib/schemas";
 import { requireAuth } from "./auth";
 import { fail, linkOrCreateTransaction, refresh } from "./action-utils";
+import { linkPlanToTemplateItem, templateDefaultFor } from "./debt-sync";
 import type { ActionResult } from "./actions";
 
 const zMoney = z.number().int("Nominal harus bilangan bulat").min(0, "Nominal tidak boleh negatif").max(2_000_000_000);
@@ -75,27 +76,44 @@ export async function setDebtPlan(debtId: number, month: string, amount: number 
       const ex = await tx.debtPlan.findUnique({ where: { debtId_month: { debtId, month } }, include: { transaction: true } });
       if (amount === null || amount === 0) {
         if (ex?.paid) throw new Error("Rencana sudah dibayar. Batalkan centang dibayar dulu.");
-        if (ex) await tx.debtPlan.delete({ where: { id: ex.id } });
+        if (!ex) return;
+        // Item bulanan dari template: nominal kembali ke default template (tautan lepas otomatis)
+        if (ex.transaction?.source === "TEMPLATE") {
+          const def = await templateDefaultFor(tx, debtId, ex.transaction.name);
+          if (def !== undefined) await tx.transaction.update({ where: { id: ex.transaction.id }, data: { amount: def } });
+        }
+        // Item otomatis dari rencana yang centangnya sudah dilepas di Bulanan: ikut dihapus
+        if (ex.transaction?.source === "DEBT_PLAN") await tx.transaction.delete({ where: { id: ex.transaction.id } });
+        await tx.debtPlan.delete({ where: { id: ex.id } });
         return;
       }
       const v = zMoney.parse(amount);
       if (!ex) {
-        await tx.debtPlan.create({ data: { debtId, month, amount: v } });
+        const plan = await tx.debtPlan.create({ data: { debtId, month, amount: v } });
+        // Ada item template untuk hutang ini di bulan itu -> ikut nominal rencana
+        await linkPlanToTemplateItem(tx, plan.id);
         return;
       }
       await tx.debtPlan.update({ where: { id: ex.id }, data: { amount: v } });
       if (ex.transaction) await tx.transaction.update({ where: { id: ex.transaction.id }, data: { amount: v } });
+      else await linkPlanToTemplateItem(tx, ex.id);
     });
   });
 }
 
-/** Centang dibayar -> transaksi Cicilan di bulan itu (hubungkan ke yang sudah ada jika cocok). */
+/**
+ * Centang dibayar -> transaksi Cicilan di bulan itu (hubungkan ke yang sudah ada jika cocok).
+ * Jika rencana sudah tertaut ke item template bulanan, item itu yang dicentang.
+ */
 export async function setDebtPlanPaid(planId: number, paid: boolean) {
   return run(async () => {
     await db.$transaction(async (tx) => {
       const plan = await tx.debtPlan.findUniqueOrThrow({ where: { id: planId }, include: { debt: true, transaction: true } });
       if (paid === plan.paid) return;
-      if (paid) {
+      if (paid && plan.transaction) {
+        // Sudah tertaut ke item bulanan (mis. dari template): cukup centang dibayar
+        await tx.transaction.update({ where: { id: plan.transaction.id }, data: { isPaid: true, amount: plan.amount } });
+      } else if (paid) {
         await linkOrCreateTransaction(tx, {
           month: plan.month,
           name: plan.debt.name,
@@ -106,7 +124,9 @@ export async function setDebtPlanPaid(planId: number, paid: boolean) {
         });
       } else if (plan.transaction) {
         // Transaksi otomatis dihapus; transaksi manual yang ditautkan hanya dilepas
+        // Item template tetap tertaut (hanya centang dibayar dilepas).
         if (plan.transaction.source === "DEBT_PLAN") await tx.transaction.delete({ where: { id: plan.transaction.id } });
+        else if (plan.transaction.source === "TEMPLATE") await tx.transaction.update({ where: { id: plan.transaction.id }, data: { isPaid: false } });
         else await tx.transaction.update({ where: { id: plan.transaction.id }, data: { debtPlanId: null } });
       }
       await tx.debtPlan.update({ where: { id: planId }, data: { paid } });

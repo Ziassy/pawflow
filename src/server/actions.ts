@@ -9,6 +9,8 @@ import { zAmountNonNeg, zCreatePeriod, zTransactionInput, type TransactionInput 
 import { formatMonth, formatRupiah } from "@/lib/format";
 import { requireAuth } from "./auth";
 import { isInternalError } from "./action-utils";
+import { linkAllPlansOfDebt, plannedItemsForMonth } from "./debt-sync";
+import { normalizeName } from "@/lib/money";
 
 export type ActionResult =
   | { ok: true }
@@ -65,13 +67,25 @@ export async function createPeriod(input: z.input<typeof zCreatePeriod>): Promis
         .map((t) => ({ name: t.name, categoryId: t.categoryId, amount: t.amount, note: t.note, source: "MANUAL" }));
     }
 
-    await db.monthlyPeriod.create({
-      data: {
-        month,
-        isPlan: data.isPlan,
-        salary,
-        transactions: { create: items.map((it, i) => ({ ...it, isPaid: false, sortOrder: i + 1 })) },
-      },
+    await db.$transaction(async (tx) => {
+      // Item dari template yang terhubung ke hutang: nominal + status dari rencana bayar bulan ini
+      const planned = await plannedItemsForMonth(tx, month);
+      await tx.monthlyPeriod.create({
+        data: {
+          month,
+          isPlan: data.isPlan,
+          salary,
+          transactions: {
+            create: items.map((it, i) => {
+              const p = planned.get(normalizeName(it.name));
+              if (p) planned.delete(normalizeName(it.name));
+              return p
+                ? { ...it, source: "TEMPLATE", amount: p.amount, isPaid: p.isPaid, debtPlanId: p.debtPlanId, sortOrder: i + 1 }
+                : { ...it, isPaid: false, sortOrder: i + 1 };
+            }),
+          },
+        },
+      });
     });
   } catch (e) {
     return fail(e);
@@ -115,22 +129,32 @@ export async function addMissingTemplates(periodId: number): Promise<ActionResul
   await requireAuth();
   let added = 0;
   try {
-    const [templates, existing] = await Promise.all([
+    const [templates, existing, period] = await Promise.all([
       db.recurringTemplate.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
       db.transaction.findMany({ where: { periodId }, select: { name: true, sortOrder: true } }),
+      db.monthlyPeriod.findUniqueOrThrow({ where: { id: periodId }, select: { month: true } }),
     ]);
     const names = new Set(existing.map((t) => t.name.trim().toLowerCase()));
     let order = Math.max(0, ...existing.map((t) => t.sortOrder));
     const missing = templates.filter((t) => !names.has(t.name.trim().toLowerCase()));
-    await db.transaction.createMany({
-      data: missing.map((t) => ({
-        periodId,
-        name: t.name,
-        categoryId: t.categoryId,
-        amount: t.defaultAmount,
-        source: "TEMPLATE",
-        sortOrder: ++order,
-      })),
+    await db.$transaction(async (tx) => {
+      const planned = await plannedItemsForMonth(tx, period.month);
+      await tx.transaction.createMany({
+        data: missing.map((t) => {
+          const p = planned.get(normalizeName(t.name));
+          if (p) planned.delete(normalizeName(t.name));
+          return {
+            periodId,
+            name: t.name,
+            categoryId: t.categoryId,
+            amount: p ? p.amount : t.defaultAmount,
+            isPaid: p?.isPaid ?? false,
+            debtPlanId: p?.debtPlanId ?? null,
+            source: "TEMPLATE",
+            sortOrder: ++order,
+          };
+        }),
+      });
     });
     added = missing.length;
   } catch (e) {
@@ -199,7 +223,13 @@ export async function updateTransaction(
       const msg = await duplicateMessage(tx.periodId, data, id);
       if (msg) return { ok: false, duplicate: msg };
     }
-    await db.transaction.update({ where: { id }, data: { ...data, note: data.note || null } });
+    await db.$transaction(async (t) => {
+      await t.transaction.update({ where: { id }, data: { ...data, note: data.note || null } });
+      // Item tertaut ke rencana hutang: nominal ikut ke Saldo & rencana per bulan
+      if (tx.debtPlanId && data.amount !== null && data.amount !== undefined && data.amount > 0) {
+        await t.debtPlan.update({ where: { id: tx.debtPlanId }, data: { amount: data.amount } });
+      }
+    });
   } catch (e) {
     return fail(e);
   }
@@ -210,7 +240,11 @@ export async function updateTransaction(
 export async function setTransactionPaid(id: number, isPaid: boolean): Promise<ActionResult> {
   await requireAuth();
   try {
-    await db.transaction.update({ where: { id }, data: { isPaid } });
+    await db.$transaction(async (t) => {
+      const row = await t.transaction.update({ where: { id }, data: { isPaid } });
+      // Item tertaut ke rencana hutang: status dibayar ikut
+      if (row.debtPlanId) await t.debtPlan.update({ where: { id: row.debtPlanId }, data: { paid: isPaid } });
+    });
   } catch (e) {
     return fail(e);
   }
@@ -254,6 +288,7 @@ const zTemplate = z.object({
   categoryId: z.number().int().positive("Kategori wajib dipilih"),
   defaultAmount: zAmountNonNeg,
   active: z.boolean(),
+  debtId: z.number().int().positive().nullable().optional(),
 });
 
 export async function saveTemplate(id: number | null, input: z.input<typeof zTemplate>): Promise<ActionResult> {
@@ -261,12 +296,17 @@ export async function saveTemplate(id: number | null, input: z.input<typeof zTem
   try {
     const data = zTemplate.parse(input);
     await assertCategory(data.categoryId);
-    if (id) {
-      await db.recurringTemplate.update({ where: { id }, data });
-    } else {
-      const max = await db.recurringTemplate.aggregate({ _max: { sortOrder: true } });
-      await db.recurringTemplate.create({ data: { ...data, sortOrder: (max._max.sortOrder ?? 0) + 1 } });
-    }
+    if (data.debtId && !(await db.debt.findUnique({ where: { id: data.debtId } }))) throw new Error("Hutang tidak ditemukan");
+    await db.$transaction(async (tx) => {
+      if (id) {
+        await tx.recurringTemplate.update({ where: { id }, data });
+      } else {
+        const max = await tx.recurringTemplate.aggregate({ _max: { sortOrder: true } });
+        await tx.recurringTemplate.create({ data: { ...data, sortOrder: (max._max.sortOrder ?? 0) + 1 } });
+      }
+      // Baru dihubungkan ke hutang: item bulan yang sudah ada ikut nominal rencananya
+      if (data.debtId) await linkAllPlansOfDebt(tx, data.debtId);
+    });
   } catch (e) {
     return fail(e);
   }

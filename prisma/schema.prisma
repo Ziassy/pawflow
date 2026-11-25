@@ -122,6 +122,9 @@ model RecurringTemplate {
   defaultAmount  Int?
   active         Boolean  @default(true)
   sortOrder      Int      @default(0)
+  /// Opsional: nominal tiap bulan diambil dari rencana bayar hutang ini (Saldo & rencana per bulan)
+  debtId         Int?
+  debt           Debt?    @relation(fields: [debtId], references: [id], onDelete: SetNull)
 }
 
 // ---------------------------------------------------------------------------
@@ -139,6 +142,7 @@ model Debt {
   snapshots  DebtSnapshot[]
   plans      DebtPlan[]
   entries    DebtEntry[]
+  templates  RecurringTemplate[]
 }
 
 /// Saldo sisa hutang per bulan

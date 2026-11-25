@@ -11,12 +11,13 @@ import { BackupRestore } from "./data-tools";
 export const metadata: Metadata = { title: "Pengaturan" };
 
 export default async function PengaturanPage() {
-  const [categories, templates, assetTypes, platforms, settings] = await Promise.all([
+  const [categories, templates, assetTypes, platforms, settings, debts] = await Promise.all([
     db.category.findMany({ orderBy: { sortOrder: "asc" } }),
     db.recurringTemplate.findMany({ orderBy: { sortOrder: "asc" } }),
     db.assetType.findMany({ orderBy: { sortOrder: "asc" } }),
     db.platform.findMany({ orderBy: { sortOrder: "asc" } }),
     db.appSetting.findUnique({ where: { id: 1 } }),
+    db.debt.findMany({ orderBy: [{ sortOrder: "asc" }, { id: "asc" }], select: { id: true, name: true, active: true } }),
   ]);
 
   return (
@@ -34,10 +35,11 @@ export default async function PengaturanPage() {
         <Panel title="Target kategori (% dari gaji)">
           <CategoryTargets categories={categories} />
         </Panel>
-        <Panel title="Template item rutin" className="lg:row-span-2">
+        <Panel title="Template item rutin" description="Item yang terhubung ke kartu/cicilan mengikuti rencana bayar di Hutang tiap bulan." className="lg:row-span-2">
           <TemplateEditor
-            templates={templates.map(({ id, name, categoryId, defaultAmount, active }) => ({ id, name, categoryId, defaultAmount, active }))}
+            templates={templates.map(({ id, name, categoryId, defaultAmount, active, debtId }) => ({ id, name, categoryId, defaultAmount, active, debtId }))}
             categories={categories}
+            debts={debts}
           />
         </Panel>
         <Panel title="Jenis aset" description="Urutan menentukan warna di grafik.">

@@ -14,8 +14,9 @@ export const TABLE_ORDER = [
   "Platform",
   "AssetType",
   "MonthlyPeriod",
-  "RecurringTemplate",
+  // Debt sebelum RecurringTemplate: template bisa merujuk hutang (debtId)
   "Debt",
+  "RecurringTemplate",
   "DebtSnapshot",
   "DebtPlan",
   "DebtEntry",

@@ -4,7 +4,7 @@ import { categoryTheme } from "@/lib/category-theme";
 import { Dropdown } from "@/components/dropdown";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
+import { Link2, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -14,16 +14,19 @@ import { deleteTemplate, saveTemplate } from "@/server/actions";
 import { formatRupiah } from "@/lib/format";
 
 type Cat = { id: number; name: string };
-type Tpl = { id: number; name: string; categoryId: number; defaultAmount: number | null; active: boolean };
+type Tpl = { id: number; name: string; categoryId: number; defaultAmount: number | null; active: boolean; debtId: number | null };
+type DebtOpt = { id: number; name: string; active: boolean };
 type Draft = Omit<Tpl, "id"> & { id: number | null };
 
-const EMPTY: Draft = { id: null, name: "", categoryId: 0, defaultAmount: null, active: true };
+const EMPTY: Draft = { id: null, name: "", categoryId: 0, defaultAmount: null, active: true, debtId: null };
+const NO_DEBT = "none";
 
-export function TemplateEditor({ templates, categories }: { templates: Tpl[]; categories: Cat[] }) {
+export function TemplateEditor({ templates, categories, debts }: { templates: Tpl[]; categories: Cat[]; debts: DebtOpt[] }) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [pending, start] = useTransition();
   const [dialog, confirm] = useConfirm();
   const catName = (id: number) => categories.find((c) => c.id === id)?.name ?? "–";
+  const debtName = (id: number | null) => (id ? (debts.find((d) => d.id === id)?.name ?? null) : null);
 
   const save = () =>
     draft &&
@@ -61,6 +64,22 @@ export function TemplateEditor({ templates, categories }: { templates: Tpl[]; ca
           value={draft.defaultAmount}
           onChange={(v) => setDraft({ ...draft, defaultAmount: v })}
         />
+        <div className="col-span-2 space-y-1">
+          <Dropdown
+            aria-label="Ambil nominal dari kartu & cicilan"
+            value={draft.debtId ? String(draft.debtId) : NO_DEBT}
+            onChange={(v) => setDraft({ ...draft, debtId: v && v !== NO_DEBT ? Number(v) : null })}
+            options={[
+              { value: NO_DEBT, label: "Nominal tetap (tidak terhubung)" },
+              ...debts.map((d) => ({ value: String(d.id), label: `Ikut rencana: ${d.name}`, hint: d.active ? undefined : "Nonaktif" })),
+            ]}
+          />
+          <p className="text-xs text-muted-foreground">
+            {draft.debtId
+              ? "Nominal tiap bulan diambil dari Saldo & rencana per bulan di Hutang. Nominal default dipakai bila rencana bulan itu kosong."
+              : "Hubungkan ke kartu/cicilan agar nominal bulanan ikut rencana bayar di Hutang."}
+          </p>
+        </div>
       </div>
       <div className="flex items-center justify-between gap-2">
         <label className="flex items-center gap-2 text-sm">
@@ -98,6 +117,11 @@ export function TemplateEditor({ templates, categories }: { templates: Tpl[]; ca
                 <span className={t.active ? "" : "text-muted-foreground line-through"}>{t.name}</span>
                 <span className="text-right text-muted-foreground">
                   {catName(t.categoryId)} · <span className="tabular-nums">{formatRupiah(t.defaultAmount)}</span>
+                  {debtName(t.debtId) && (
+                    <span className="mt-0.5 flex items-center justify-end gap-1 text-xs text-primary">
+                      <Link2 className="size-3" aria-hidden /> Ikut rencana {debtName(t.debtId)}
+                    </span>
+                  )}
                 </span>
               </button>
               <Button
