@@ -5,9 +5,11 @@ import { db } from "@/lib/db";
 import { DEBT_KIND, GOAL_COLLECTED_MODE } from "@/lib/constants";
 import { addMonths } from "@/lib/format";
 import { buildInstallments } from "@/lib/debt";
+import { valueByAssetType } from "@/lib/investment";
 import { zMonth } from "@/lib/schemas";
 import { requireAuth } from "./auth";
 import { fail, linkOrCreateTransaction, refresh } from "./action-utils";
+import { linkPlanToTemplateItem, templateDefaultFor } from "./debt-sync";
 import type { ActionResult } from "./actions";
 
 const zMoney = z.number().int("Nominal harus bilangan bulat").min(0, "Nominal tidak boleh negatif").max(2_000_000_000);
@@ -74,27 +76,44 @@ export async function setDebtPlan(debtId: number, month: string, amount: number 
       const ex = await tx.debtPlan.findUnique({ where: { debtId_month: { debtId, month } }, include: { transaction: true } });
       if (amount === null || amount === 0) {
         if (ex?.paid) throw new Error("Rencana sudah dibayar. Batalkan centang dibayar dulu.");
-        if (ex) await tx.debtPlan.delete({ where: { id: ex.id } });
+        if (!ex) return;
+        // Item bulanan dari template: nominal kembali ke default template (tautan lepas otomatis)
+        if (ex.transaction?.source === "TEMPLATE") {
+          const def = await templateDefaultFor(tx, debtId, ex.transaction.name);
+          if (def !== undefined) await tx.transaction.update({ where: { id: ex.transaction.id }, data: { amount: def } });
+        }
+        // Item otomatis dari rencana yang centangnya sudah dilepas di Bulanan: ikut dihapus
+        if (ex.transaction?.source === "DEBT_PLAN") await tx.transaction.delete({ where: { id: ex.transaction.id } });
+        await tx.debtPlan.delete({ where: { id: ex.id } });
         return;
       }
       const v = zMoney.parse(amount);
       if (!ex) {
-        await tx.debtPlan.create({ data: { debtId, month, amount: v } });
+        const plan = await tx.debtPlan.create({ data: { debtId, month, amount: v } });
+        // Ada item template untuk hutang ini di bulan itu -> ikut nominal rencana
+        await linkPlanToTemplateItem(tx, plan.id);
         return;
       }
       await tx.debtPlan.update({ where: { id: ex.id }, data: { amount: v } });
       if (ex.transaction) await tx.transaction.update({ where: { id: ex.transaction.id }, data: { amount: v } });
+      else await linkPlanToTemplateItem(tx, ex.id);
     });
   });
 }
 
-/** Centang dibayar -> transaksi Cicilan di bulan itu (hubungkan ke yang sudah ada jika cocok). */
+/**
+ * Centang dibayar -> transaksi Cicilan di bulan itu (hubungkan ke yang sudah ada jika cocok).
+ * Jika rencana sudah tertaut ke item template bulanan, item itu yang dicentang.
+ */
 export async function setDebtPlanPaid(planId: number, paid: boolean) {
   return run(async () => {
     await db.$transaction(async (tx) => {
       const plan = await tx.debtPlan.findUniqueOrThrow({ where: { id: planId }, include: { debt: true, transaction: true } });
       if (paid === plan.paid) return;
-      if (paid) {
+      if (paid && plan.transaction) {
+        // Sudah tertaut ke item bulanan (mis. dari template): cukup centang dibayar
+        await tx.transaction.update({ where: { id: plan.transaction.id }, data: { isPaid: true, amount: plan.amount } });
+      } else if (paid) {
         await linkOrCreateTransaction(tx, {
           month: plan.month,
           name: plan.debt.name,
@@ -105,7 +124,9 @@ export async function setDebtPlanPaid(planId: number, paid: boolean) {
         });
       } else if (plan.transaction) {
         // Transaksi otomatis dihapus; transaksi manual yang ditautkan hanya dilepas
+        // Item template tetap tertaut (hanya centang dibayar dilepas).
         if (plan.transaction.source === "DEBT_PLAN") await tx.transaction.delete({ where: { id: plan.transaction.id } });
+        else if (plan.transaction.source === "TEMPLATE") await tx.transaction.update({ where: { id: plan.transaction.id }, data: { isPaid: false } });
         else await tx.transaction.update({ where: { id: plan.transaction.id }, data: { debtPlanId: null } });
       }
       await tx.debtPlan.update({ where: { id: planId }, data: { paid } });
@@ -341,6 +362,36 @@ export async function copyAssetsFromPrevious(month: string): Promise<ActionResul
   return { ok: true, copied };
 }
 
+/**
+ * Tulis nilai portofolio saat ini (per jenis) ke Asset Tracker bulan `month`.
+ * Sel jenis yang ada di portofolio ditimpa; jenis lain di bulan itu dibiarkan.
+ * Nilai dihitung ulang di server, bukan dari data yang dikirim browser.
+ */
+export async function writePortfolioToTracker(month: string): Promise<ActionResult & { written?: number }> {
+  await requireAuth();
+  let written = 0;
+  try {
+    zMonth.parse(month);
+    const investments = await db.investment.findMany({ select: { assetTypeId: true, principal: true, currentValue: true } });
+    const { byType } = valueByAssetType(investments);
+    if (!byType.size) return { ok: false, error: "Belum ada posisi investasi yang punya jenis aset" };
+    await db.$transaction(
+      [...byType].map(([assetTypeId, value]) =>
+        db.assetSnapshot.upsert({
+          where: { month_assetTypeId: { month, assetTypeId } },
+          update: { value },
+          create: { month, assetTypeId, value },
+        }),
+      ),
+    );
+    written = byType.size;
+  } catch (e) {
+    return fail(e);
+  }
+  refresh();
+  return { ok: true, written };
+}
+
 export async function setAssetMonthNote(month: string, note: string) {
   return run(async () => {
     zMonth.parse(month);
@@ -387,6 +438,7 @@ export async function deletePhysicalAsset(id: number) {
 const zGoal = z.object({
   name: zName,
   targetAmount: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+  startMonth: zMonth.nullable(),
   deadline: zMonth.nullable(),
   collectedMode: z.enum(GOAL_COLLECTED_MODE),
   manualCollected: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
@@ -399,6 +451,7 @@ export async function saveGoal(id: number | null, input: z.input<typeof zGoal>) 
   return run(async () => {
     const d = zGoal.parse(input);
     if (d.collectedMode === "ASSET_TYPE" && !d.assetTypeId) throw new Error("Pilih jenis aset untuk mode otomatis");
+    if (d.startMonth && d.deadline && d.deadline <= d.startMonth) throw new Error("Tenggat harus setelah bulan mulai");
     const data = { ...d, targetAmount: BigInt(d.targetAmount), manualCollected: BigInt(d.manualCollected) };
     if (id) await db.goal.update({ where: { id }, data });
     else {

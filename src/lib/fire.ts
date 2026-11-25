@@ -1,4 +1,5 @@
 // Kalkulator target & FIRE (murni).
+import { monthDiff } from "./format";
 
 /** Usia (tahun penuh) pada tanggal tertentu. */
 export function ageAt(birth: Date, at: Date): number {
@@ -12,6 +13,62 @@ export function ageAt(birth: Date, at: Date): number {
 export function monthsUntilAge(birth: Date, targetAge: number, now: Date): number {
   const targetY = birth.getFullYear() + targetAge;
   return (targetY - now.getFullYear()) * 12 + (birth.getMonth() - now.getMonth());
+}
+
+/** Bulan saat mencapai usia tertentu: bulan lahir pada tahun (lahir + usia). birthMonth = "YYYY-MM". */
+export function monthAtAge(birthMonth: string, age: number): string {
+  const [y, m] = birthMonth.split("-");
+  return `${Number(y) + age}-${m}`;
+}
+
+/** Usia (tahun penuh) pada awal bulan `month`, dari bulan lahir. */
+export function ageAtMonth(birthMonth: string, month: string): number {
+  return Math.floor(monthDiff(birthMonth, month) / 12);
+}
+
+export type GoalTimeline = {
+  /** Tenggat efektif: tenggat yang diisi, atau bulan usia target */
+  deadline: string | null;
+  /** Lama rencana dari bulan mulai sampai tenggat */
+  totalMonths: number | null;
+  /** Bulan yang sudah berjalan sejak mulai (0..totalMonths) */
+  elapsedMonths: number | null;
+  /** Sisa bulan menabung: dari bulan mulai bila belum dimulai, kalau tidak dari bulan berjalan */
+  monthsLeft: number | null;
+};
+
+/**
+ * Garis waktu target. Contoh: lahir 1996-01, mulai 2026-01 (umur 30), usia target 40
+ * -> tenggat 2036-01, lama 120 bulan.
+ */
+export function goalTimeline({
+  startMonth,
+  deadline,
+  targetAge,
+  birthMonth,
+  current,
+}: {
+  startMonth: string | null;
+  deadline: string | null;
+  targetAge: number | null;
+  birthMonth: string | null;
+  current: string;
+}): GoalTimeline {
+  const dl = deadline ?? (targetAge && birthMonth ? monthAtAge(birthMonth, targetAge) : null);
+  if (!dl) return { deadline: null, totalMonths: null, elapsedMonths: null, monthsLeft: null };
+  const from = startMonth && startMonth > current ? startMonth : current;
+  const totalMonths = startMonth ? monthDiff(startMonth, dl) : null;
+  const elapsedMonths = startMonth && totalMonths !== null ? Math.min(Math.max(0, monthDiff(startMonth, current)), Math.max(0, totalMonths)) : null;
+  return { deadline: dl, totalMonths, elapsedMonths, monthsLeft: monthDiff(from, dl) };
+}
+
+/** Rencana awal: target dibagi rata sepanjang lama rencana, dan berapa seharusnya sudah terkumpul sekarang. */
+export function goalPlan(target: number, t: GoalTimeline): { plannedMonthly: number | null; expectedNow: number | null } {
+  if (t.totalMonths === null || t.totalMonths <= 0 || t.elapsedMonths === null) return { plannedMonthly: null, expectedNow: null };
+  return {
+    plannedMonthly: Math.ceil(target / t.totalMonths),
+    expectedNow: Math.min(target, Math.round((target * t.elapsedMonths) / t.totalMonths)),
+  };
 }
 
 export type FireInput = {

@@ -81,7 +81,7 @@ export default async function TargetPage({ searchParams }: PageProps<"/target">)
           </div>
         </div>
 
-        <GoalList goals={view.goals} assetTypes={assetTypes} hasBirthDate={view.birthDate !== null} />
+        <GoalList goals={view.goals} assetTypes={assetTypes} birthMonth={view.birthMonth} />
 
         <Resolutions year={year} items={resolutions.map((r) => ({ id: r.id, text: r.text, done: r.done }))} />
         <p className="text-xs text-muted-foreground">

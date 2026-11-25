@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allocationByType, assetMonthTotals, changeRatio, isBigDrop, profitRatio } from "./investment";
+import { allocationByType, assetMonthTotals, changeRatio, isBigDrop, profitRatio, valueByAssetType } from "./investment";
 
 describe("profitRatio (aturan 5)", () => {
   it("contoh spreadsheet", () => {
@@ -41,5 +41,21 @@ describe("asset tracker", () => {
     expect(isBigDrop(100, 70, 3000)).toBe(false);
     expect(isBigDrop(null, 10, 3000)).toBe(false);
     expect(isBigDrop(0, 10, 3000)).toBe(false);
+  });
+});
+
+describe("valueByAssetType", () => {
+  it("menjumlah per jenis, nilai kosong pakai modal, tanpa jenis dipisah", () => {
+    const r = valueByAssetType([
+      { assetTypeId: 1, principal: 100, currentValue: 120 },
+      { assetTypeId: 1, principal: 50, currentValue: null },
+      { assetTypeId: 2, principal: 10, currentValue: 0 },
+      { assetTypeId: null, principal: 30, currentValue: 40 },
+    ]);
+    expect([...r.byType]).toEqual([
+      [1, 170],
+      [2, 0],
+    ]);
+    expect(r.unassigned).toBe(40);
   });
 });

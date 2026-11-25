@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { monthDiff, toMonthKey } from "@/lib/format";
-import { ageAt, allocateFromSalary, fire, monthsUntilAge, type FireResult } from "@/lib/fire";
+import { toMonthKey } from "@/lib/format";
+import { ageAt, allocateFromSalary, fire, goalPlan, goalTimeline, type FireResult } from "@/lib/fire";
 import { latestSnapshot } from "@/lib/debt";
 import { SAVINGS_CATEGORY } from "@/lib/category-theme";
 import { getAllPeriodSummaries } from "./queries";
@@ -15,11 +15,20 @@ export type GoalView = {
   manualCollected: number;
   assetTypeId: number | null;
   assetTypeName: string | null;
+  startMonth: string | null;
+  /** Tenggat yang diisi (bisa null); lihat `effectiveDeadline` untuk hasil dari usia target */
   deadline: string | null;
+  effectiveDeadline: string | null;
   targetAge: number | null;
   note: string | null;
   priority: number;
   monthsLeft: number | null;
+  totalMonths: number | null;
+  elapsedMonths: number | null;
+  /** Target dibagi rata sepanjang lama rencana */
+  plannedMonthly: number | null;
+  /** Seharusnya sudah terkumpul menurut rencana awal */
+  expectedNow: number | null;
   fire: FireResult;
   fromSalary: number;
   extra: number;
@@ -38,6 +47,8 @@ export async function getGoalsView(now = new Date()) {
   const taxBps = settings?.interestTaxBps ?? 2000;
   const birth = settings?.birthDate ?? null;
   const current = toMonthKey(now);
+  // Bulan lahir "YYYY-MM" (tanggal lahir disimpan sebagai tanggal UTC)
+  const birthMonth = birth ? birth.toISOString().slice(0, 7) : null;
 
   // Kapasitas dari gaji = rata-rata porsi Masa Depan 6 bulan Tercatat terakhir
   const recorded = periods.filter((p) => p.status === "Tercatat").slice(-6);
@@ -55,13 +66,15 @@ export async function getGoalsView(now = new Date()) {
       collected = txSums.find((t) => t.goalId === g.id)?._sum.amount ?? 0;
     }
     // Tenggat yang diisi menang; usia target hanya dipakai bila tenggat kosong.
-    const monthsLeft = g.deadline ? monthDiff(current, g.deadline) : g.targetAge && birth ? monthsUntilAge(birth, g.targetAge, now) : null;
+    // Sisa bulan dihitung dari bulan mulai bila belum dimulai, kalau tidak dari bulan berjalan.
+    const timeline = goalTimeline({ startMonth: g.startMonth, deadline: g.deadline, targetAge: g.targetAge, birthMonth, current });
     const target = Number(g.targetAmount);
     return {
       g,
       collected,
-      monthsLeft,
-      fire: fire({ target, collected, monthsLeft, rateBps, taxBps }),
+      timeline,
+      plan: goalPlan(target, timeline),
+      fire: fire({ target, collected, monthsLeft: timeline.monthsLeft, rateBps, taxBps }),
       target,
     };
   });
@@ -79,11 +92,17 @@ export async function getGoalsView(now = new Date()) {
     manualCollected: Number(b.g.manualCollected),
     assetTypeId: b.g.assetTypeId,
     assetTypeName: b.g.assetType?.name ?? null,
+    startMonth: b.g.startMonth,
     deadline: b.g.deadline,
+    effectiveDeadline: b.timeline.deadline,
     targetAge: b.g.targetAge,
     note: b.g.note,
     priority: b.g.priority,
-    monthsLeft: b.monthsLeft,
+    monthsLeft: b.timeline.monthsLeft,
+    totalMonths: b.timeline.totalMonths,
+    elapsedMonths: b.timeline.elapsedMonths,
+    plannedMonthly: b.plan.plannedMonthly,
+    expectedNow: b.plan.expectedNow,
     fire: b.fire,
     fromSalary: alloc.get(b.g.id)?.fromSalary ?? 0,
     extra: alloc.get(b.g.id)?.extra ?? 0,
@@ -95,6 +114,7 @@ export async function getGoalsView(now = new Date()) {
     capacityMonths: recorded.length,
     age: birth ? ageAt(birth, now) : null,
     birthDate: birth,
+    birthMonth,
     rateBps,
     taxBps,
   };

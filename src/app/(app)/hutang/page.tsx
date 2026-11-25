@@ -119,7 +119,7 @@ async function CardsTab({ from, to }: { from: string | null; to: string | null }
       />
 
       {debts.length > 0 ? (
-        <Panel padded={false} title="Saldo & rencana per bulan" description="Klik sel untuk mengisi. Kosong berarti belum ada data, bukan 0.">
+        <Panel padded={false} title="Saldo & rencana per bulan" description="Klik sel untuk mengisi. Kosong berarti belum ada data, bukan 0. Rencana bayar ikut mengisi item bulanan yang terhubung di Pengaturan > Template item rutin.">
           <DebtGrid
             months={months}
             current={current}

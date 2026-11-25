@@ -12,6 +12,7 @@ import { RupiahInput } from "@/components/rupiah-input";
 import { EmptyState, Progress, Segmented } from "@/components/ui-kit";
 import { GOAL_COLLECTED_MODE } from "@/lib/constants";
 import { addMonths, formatMonth, formatPercent, formatRupiah, monthDiff, toMonthKey } from "@/lib/format";
+import { ageAtMonth, monthAtAge } from "@/lib/fire";
 import { cn } from "@/lib/utils";
 import { deleteGoal, moveGoal, saveGoal } from "@/server/finance-actions";
 import type { GoalView } from "@/server/goals";
@@ -21,6 +22,7 @@ type Draft = {
   id: number | null;
   name: string;
   targetAmount: number | null;
+  startMonth: string;
   deadline: string;
   collectedMode: Mode;
   manualCollected: number | null;
@@ -31,7 +33,17 @@ type Draft = {
 
 const MODE_LABEL: Record<Mode, string> = { MANUAL: "Manual", ASSET_TYPE: "Dari jenis aset", TRANSACTIONS: "Dari transaksi" };
 
-function GoalForm({ draft, onClose, assetTypes, hasBirthDate }: { draft: Draft | null; onClose: () => void; assetTypes: { id: number; name: string }[]; hasBirthDate: boolean }) {
+function GoalForm({
+  draft,
+  onClose,
+  assetTypes,
+  birthMonth,
+}: {
+  draft: Draft | null;
+  onClose: () => void;
+  assetTypes: { id: number; name: string }[];
+  birthMonth: string | null;
+}) {
   const [d, setD] = useState(draft);
   const [last, setLast] = useState(draft);
   if (draft !== last) {
@@ -40,10 +52,17 @@ function GoalForm({ draft, onClose, assetTypes, hasBirthDate }: { draft: Draft |
   }
   const { pending, submit } = useSubmit();
   const thisMonth = toMonthKey(new Date());
-  const diff = d?.deadline ? monthDiff(thisMonth, d.deadline) : null;
-  const monthsLeft = diff !== null && diff > 0 ? diff : null;
+  const start = d?.startMonth || thisMonth;
+  // Lama rencana: dari bulan mulai sampai tenggat
+  const span = d?.deadline ? monthDiff(start, d.deadline) : null;
+  const totalMonths = span !== null && span > 0 ? span : null;
+  // Sisa bulan menabung: dari bulan mulai bila belum dimulai, kalau tidak dari bulan ini
+  const left = d?.deadline ? monthDiff(start > thisMonth ? start : thisMonth, d.deadline) : null;
+  const monthsLeft = left !== null && left > 0 ? left : null;
   const remaining = d ? Math.max(0, (d.targetAmount ?? 0) - (d.collectedMode === "MANUAL" ? (d.manualCollected ?? 0) : 0)) : 0;
   const perMonth = d?.targetAmount && monthsLeft ? Math.ceil(remaining / monthsLeft) : null;
+  const startAge = birthMonth ? ageAtMonth(birthMonth, start) : null;
+  const ageDeadline = birthMonth && d?.targetAge ? monthAtAge(birthMonth, d.targetAge) : null;
   return (
     <FormDialog icon={Target} description="Satu anak tangga menuju kebebasan finansial." title={d?.id ? "Edit target" : "Tambah target"} open={!!draft} onOpenChange={(o) => !o && onClose()} wide>
       {d && (
@@ -56,6 +75,7 @@ function GoalForm({ draft, onClose, assetTypes, hasBirthDate }: { draft: Draft |
                 saveGoal(d.id, {
                   name: d.name,
                   targetAmount: d.targetAmount ?? 0,
+                  startMonth: start,
                   deadline: d.deadline || null,
                   collectedMode: d.collectedMode,
                   manualCollected: d.manualCollected ?? 0,
@@ -75,12 +95,41 @@ function GoalForm({ draft, onClose, assetTypes, hasBirthDate }: { draft: Draft |
             <Field label="Target nominal" htmlFor="g-target" hint="Bisa ketik 1M atau 500jt">
               <RupiahInput id="g-target" className="h-10 rounded-control" value={d.targetAmount} onChange={(v) => setD({ ...d, targetAmount: v })} />
             </Field>
-            <Field label="Tenggat" htmlFor="g-deadline">
-              <MonthPicker id="g-deadline" clearable placeholder="Tanpa tenggat" value={d.deadline || null} onChange={(v) => setD({ ...d, deadline: v ?? "" })} />
+            <Field label="Mulai menabung" htmlFor="g-start" hint={startAge !== null ? `Saat itu umur ${startAge}` : "Patokan lama rencana"}>
+              <MonthPicker
+                id="g-start"
+                value={start}
+                onChange={(v) => {
+                  const s = v ?? thisMonth;
+                  // Tenggat dari usia target tidak bergantung bulan mulai; tenggat manual juga dipertahankan
+                  setD({ ...d, startMonth: s });
+                }}
+              />
             </Field>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Selesai dalam (bulan)" htmlFor="g-months" hint="Mengisi tenggat otomatis">
+            <Field
+              label="Usia target (FIRE)"
+              htmlFor="g-age"
+              hint={birthMonth ? (ageDeadline ? `Tercapai ${formatMonth(ageDeadline)}` : "Mengisi tenggat otomatis") : "Isi tanggal lahir di Pengaturan agar usia dihitung"}
+            >
+              <Input
+                id="g-age"
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={120}
+                className="h-10 rounded-control"
+                placeholder="mis. 40"
+                value={d.targetAge ?? ""}
+                onChange={(e) => {
+                  const age = e.target.value ? Math.floor(Number(e.target.value)) : null;
+                  const dl = birthMonth && age && age > 0 ? monthAtAge(birthMonth, age) : null;
+                  setD({ ...d, targetAge: age, deadline: dl ?? d.deadline });
+                }}
+              />
+            </Field>
+            <Field label="Lama (bulan)" htmlFor="g-months" hint="Dihitung dari bulan mulai">
               <Input
                 id="g-months"
                 type="number"
@@ -88,26 +137,49 @@ function GoalForm({ draft, onClose, assetTypes, hasBirthDate }: { draft: Draft |
                 min={1}
                 max={600}
                 className="h-10 rounded-control"
-                placeholder="mis. 4"
-                value={monthsLeft ?? ""}
+                placeholder="mis. 120"
+                value={totalMonths ?? ""}
                 onChange={(e) => {
                   const n = Math.floor(Number(e.target.value));
-                  setD({ ...d, deadline: e.target.value && n > 0 ? addMonths(thisMonth, n) : "" });
+                  const dl = e.target.value && n > 0 ? addMonths(start, n) : "";
+                  // Lama diubah manual -> tenggat tidak lagi mengikuti usia target
+                  setD({ ...d, deadline: dl, targetAge: dl && ageDeadline === dl ? d.targetAge : null });
                 }}
               />
             </Field>
-            <Field label="Usia target (FIRE)" htmlFor="g-age" hint={hasBirthDate ? "Dipakai bila tenggat kosong" : "Isi tanggal lahir di Pengaturan agar usia dipakai"}>
-              <Input
-                id="g-age"
-                type="number"
-                min={1}
-                max={120}
-                className="h-10 rounded-control"
-                value={d.targetAge ?? ""}
-                onChange={(e) => setD({ ...d, targetAge: e.target.value ? Number(e.target.value) : null })}
-              />
-            </Field>
           </div>
+          <Field label="Tenggat" htmlFor="g-deadline" hint="Terisi otomatis dari usia target atau lama; bisa diubah">
+            <MonthPicker
+              id="g-deadline"
+              clearable
+              placeholder="Tanpa tenggat"
+              min={addMonths(start, 1)}
+              value={d.deadline || null}
+              onChange={(v) => setD({ ...d, deadline: v ?? "", targetAge: v && v === ageDeadline ? d.targetAge : null })}
+            />
+          </Field>
+          {totalMonths !== null && (
+            <p className="rounded-xl bg-secondary p-3 text-sm" aria-live="polite">
+              {startAge !== null && d.targetAge && d.deadline === ageDeadline ? (
+                <>
+                  Mulai umur {startAge} ({formatMonth(start)}), FIRE umur {d.targetAge} ({formatMonth(d.deadline)}) ={" "}
+                  <strong className="font-semibold tabular-nums">{totalMonths} bulan</strong>.
+                </>
+              ) : (
+                <>
+                  {formatMonth(start)} sampai {formatMonth(d.deadline)} = <strong className="font-semibold tabular-nums">{totalMonths} bulan</strong>.
+                </>
+              )}
+              {perMonth !== null && (
+                <>
+                  {" "}
+                  Perlu menabung <strong className="font-semibold tabular-nums">{formatRupiah(perMonth)}/bln</strong>
+                  {monthsLeft !== totalMonths && <> selama sisa {monthsLeft} bulan</>}
+                  {d.collectedMode === "MANUAL" ? "." : ", belum dikurangi yang sudah terkumpul."}
+                </>
+              )}
+            </p>
+          )}
           <Field label="Terkumpul">
             <Segmented
               aria-label="Cara hitung terkumpul"
@@ -136,12 +208,6 @@ function GoalForm({ draft, onClose, assetTypes, hasBirthDate }: { draft: Draft |
           {d.collectedMode === "TRANSACTIONS" && (
             <p className="rounded-xl bg-secondary p-3 text-sm text-muted-foreground">Terkumpul = jumlah transaksi yang ditautkan ke target ini (pilih “Target” saat edit transaksi).</p>
           )}
-          {perMonth !== null && (
-            <p className="rounded-xl bg-secondary p-3 text-sm" aria-live="polite">
-              Perlu menabung <strong className="font-semibold tabular-nums">{formatRupiah(perMonth)}/bln</strong> selama {monthsLeft} bulan
-              {d.collectedMode === "MANUAL" ? "." : ", belum dikurangi yang sudah terkumpul."}
-            </p>
-          )}
           <Field label="Catatan" htmlFor="g-note">
             <Input id="g-note" className="h-10 rounded-control" value={d.note} onChange={(e) => setD({ ...d, note: e.target.value })} />
           </Field>
@@ -152,7 +218,7 @@ function GoalForm({ draft, onClose, assetTypes, hasBirthDate }: { draft: Draft |
   );
 }
 
-export function GoalList({ goals, assetTypes, hasBirthDate }: { goals: GoalView[]; assetTypes: { id: number; name: string }[]; hasBirthDate: boolean }) {
+export function GoalList({ goals, assetTypes, birthMonth }: { goals: GoalView[]; assetTypes: { id: number; name: string }[]; birthMonth: string | null }) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [openId, setOpenId] = useState<number | null>(null);
   const [dialog, confirm] = useConfirm();
@@ -166,7 +232,7 @@ export function GoalList({ goals, assetTypes, hasBirthDate }: { goals: GoalView[
         <Button
           className="h-9 rounded-control"
           onClick={() =>
-            setDraft({ id: null, name: "", targetAmount: null, deadline: "", collectedMode: "MANUAL", manualCollected: null, assetTypeId: null, targetAge: null, note: "" })
+            setDraft({ id: null, name: "", targetAmount: null, startMonth: toMonthKey(new Date()), deadline: "", collectedMode: "MANUAL", manualCollected: null, assetTypeId: null, targetAge: null, note: "" })
           }
         >
           <Plus className="size-4" /> Tambah target
@@ -195,7 +261,13 @@ export function GoalList({ goals, assetTypes, hasBirthDate }: { goals: GoalView[
                   <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                     <span className="font-medium text-foreground">{formatPercent(f.progress, 0)}</span>
                     <span>{MODE_LABEL[g.collectedMode as Mode]}{g.assetTypeName && `: ${g.assetTypeName}`}</span>
-                    {g.deadline && <span>Tenggat {formatMonth(g.deadline)}</span>}
+                    {g.startMonth && <span>Mulai {formatMonth(g.startMonth)}</span>}
+                    {g.effectiveDeadline && <span>Tenggat {formatMonth(g.effectiveDeadline)}</span>}
+                    {g.totalMonths !== null && g.elapsedMonths !== null && g.totalMonths > 0 && (
+                      <span>
+                        Bulan ke-{Math.min(g.elapsedMonths + 1, g.totalMonths)} dari {g.totalMonths}
+                      </span>
+                    )}
                     {g.targetAge && <span>Usia target {g.targetAge}</span>}
                     {g.monthsLeft !== null && <span className={cn(g.monthsLeft <= 0 && !done && "text-negative")}>{g.monthsLeft > 0 ? `${g.monthsLeft} bln lagi` : "Tenggat lewat"}</span>}
                     {f.requiredMonthly !== null && !done && <span>Butuh {formatRupiah(f.requiredMonthly)}/bln</span>}
@@ -217,6 +289,7 @@ export function GoalList({ goals, assetTypes, hasBirthDate }: { goals: GoalView[
                         id: g.id,
                         name: g.name,
                         targetAmount: g.target,
+                        startMonth: g.startMonth ?? "",
                         deadline: g.deadline ?? "",
                         collectedMode: g.collectedMode as Mode,
                         manualCollected: g.manualCollected,
@@ -253,7 +326,14 @@ export function GoalList({ goals, assetTypes, hasBirthDate }: { goals: GoalView[
                 <dl className="grid grid-cols-2 gap-x-6 gap-y-3 border-t p-5 text-sm sm:grid-cols-4">
                   <Stat label="Target dana" value={formatRupiah(g.target)} />
                   <Stat label="Kurang" value={formatRupiah(f.remaining)} />
+                  <Stat label="Lama rencana" value={g.totalMonths === null ? "Isi bulan mulai" : `${g.totalMonths} bulan`} />
                   <Stat label="Sisa bulan" value={g.monthsLeft === null ? "Isi tenggat / usia" : `${g.monthsLeft} bulan`} />
+                  <Stat label="Rencana awal/bln" value={formatRupiah(g.plannedMonthly)} />
+                  <Stat
+                    label="Seharusnya terkumpul"
+                    value={formatRupiah(g.expectedNow)}
+                    warn={g.expectedNow !== null && g.collected < g.expectedNow}
+                  />
                   <Stat label="Return bunga/bln (kotor)" value={formatRupiah(f.monthlyInterestGross)} />
                   <Stat label="Return bunga/bln (bersih)" value={formatRupiah(f.monthlyInterestNet)} strong />
                   <Stat label="Tabungan/bln dibutuhkan" value={formatRupiah(f.requiredMonthly)} strong />
@@ -265,7 +345,7 @@ export function GoalList({ goals, assetTypes, hasBirthDate }: { goals: GoalView[
           );
         })}
       </ol>
-      <GoalForm draft={draft} onClose={() => setDraft(null)} assetTypes={assetTypes} hasBirthDate={hasBirthDate} />
+      <GoalForm draft={draft} onClose={() => setDraft(null)} assetTypes={assetTypes} birthMonth={birthMonth} />
     </section>
   );
 }
