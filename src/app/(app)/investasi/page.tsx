@@ -5,10 +5,11 @@ import { HeroCard, Panel, StatCard, TabLinks } from "@/components/ui-kit";
 import { Donut, PercentBars } from "@/components/charts";
 import { db } from "@/lib/db";
 import { addMonths, formatMonth, formatPercent, formatRupiah, isMonthKey, toMonthKey } from "@/lib/format";
-import { allocationByType, assetMonthTotals, profitRatio } from "@/lib/investment";
+import { allocationByType, assetMonthTotals, profitRatio, valueByAssetType } from "@/lib/investment";
 import { OTHER_COLOR, seriesColor } from "@/lib/category-theme";
 import { cn } from "@/lib/utils";
 import { PortfolioTable } from "./portfolio";
+import { PortfolioToTracker } from "./portfolio-sync";
 import { AssetTracker } from "./tracker";
 import { PortfolioTargets } from "./targets";
 import { PhysicalAssets } from "./physical";
@@ -49,11 +50,22 @@ export default async function InvestasiPage({ searchParams }: PageProps<"/invest
 }
 
 async function PortfolioTab({ colorOf }: { colorOf: Map<string, string> }) {
-  const [investments, platforms, assetTypes] = await Promise.all([
+  const [investments, platforms, assetTypes, snapshots] = await Promise.all([
     db.investment.findMany({ orderBy: [{ sortOrder: "asc" }, { id: "asc" }], include: { platform: true, assetType: true } }),
     db.platform.findMany({ orderBy: { sortOrder: "asc" } }),
     db.assetType.findMany({ orderBy: { sortOrder: "asc" } }),
+    db.assetSnapshot.findMany({ select: { month: true, assetTypeId: true, value: true } }),
   ]);
+  // Untuk tombol "Tulis ke Asset Tracker": nilai per jenis + isi tracker yang sudah ada
+  const sync = valueByAssetType(investments);
+  const syncRows = [...sync.byType]
+    .map(([id, value]) => {
+      const name = assetTypes.find((t) => t.id === id)?.name ?? "?";
+      return { assetTypeId: id, name, value, color: colorOf.get(name) ?? OTHER_COLOR };
+    })
+    .sort((a, b) => b.value - a.value);
+  const snapshotMap: Record<string, Record<number, number>> = {};
+  for (const s of snapshots) (snapshotMap[s.month] ??= {})[s.assetTypeId] = s.value;
   const alloc = allocationByType(investments.map((i) => ({ assetType: i.assetType?.name ?? null, principal: i.principal, currentValue: i.currentValue })));
   const totalPrincipal = investments.reduce((s, i) => s + i.principal, 0);
   const lastUpdate = investments.reduce<Date | null>((d, i) => (i.valueUpdatedAt && (!d || i.valueUpdatedAt > d) ? i.valueUpdatedAt : d), null);
@@ -110,7 +122,12 @@ async function PortfolioTab({ colorOf }: { colorOf: Map<string, string> }) {
         <Panel title="Alokasi per jenis" className="lg:col-span-1">
           <Donut data={donut} total={alloc.total} centerLabel="Total" empty="Belum ada investasi." />
         </Panel>
-        <Panel title="Total per jenis" className="lg:col-span-2" padded={false}>
+        <Panel
+          title="Total per jenis"
+          className="lg:col-span-2"
+          padded={false}
+          action={<PortfolioToTracker rows={syncRows} unassigned={sync.unassigned} snapshots={snapshotMap} />}
+        >
           <ul className="mt-3 divide-y border-t sm:hidden">
             {alloc.rows.map((r) => (
               <li key={r.type} className="space-y-2 px-4 py-3">

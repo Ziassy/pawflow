@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { DEBT_KIND, GOAL_COLLECTED_MODE } from "@/lib/constants";
 import { addMonths } from "@/lib/format";
 import { buildInstallments } from "@/lib/debt";
+import { valueByAssetType } from "@/lib/investment";
 import { zMonth } from "@/lib/schemas";
 import { requireAuth } from "./auth";
 import { fail, linkOrCreateTransaction, refresh } from "./action-utils";
@@ -339,6 +340,36 @@ export async function copyAssetsFromPrevious(month: string): Promise<ActionResul
   }
   refresh();
   return { ok: true, copied };
+}
+
+/**
+ * Tulis nilai portofolio saat ini (per jenis) ke Asset Tracker bulan `month`.
+ * Sel jenis yang ada di portofolio ditimpa; jenis lain di bulan itu dibiarkan.
+ * Nilai dihitung ulang di server, bukan dari data yang dikirim browser.
+ */
+export async function writePortfolioToTracker(month: string): Promise<ActionResult & { written?: number }> {
+  await requireAuth();
+  let written = 0;
+  try {
+    zMonth.parse(month);
+    const investments = await db.investment.findMany({ select: { assetTypeId: true, principal: true, currentValue: true } });
+    const { byType } = valueByAssetType(investments);
+    if (!byType.size) return { ok: false, error: "Belum ada posisi investasi yang punya jenis aset" };
+    await db.$transaction(
+      [...byType].map(([assetTypeId, value]) =>
+        db.assetSnapshot.upsert({
+          where: { month_assetTypeId: { month, assetTypeId } },
+          update: { value },
+          create: { month, assetTypeId, value },
+        }),
+      ),
+    );
+    written = byType.size;
+  } catch (e) {
+    return fail(e);
+  }
+  refresh();
+  return { ok: true, written };
 }
 
 export async function setAssetMonthNote(month: string, note: string) {

@@ -31,6 +31,21 @@ export function allocationByType(items: InvestmentLite[]) {
   };
 }
 
+/**
+ * Nilai portofolio per jenis aset (id), untuk ditulis ke Asset Tracker.
+ * Posisi tanpa jenis tidak bisa dipetakan ke baris tracker -> dihitung terpisah.
+ */
+export function valueByAssetType(items: { assetTypeId: number | null; principal: number; currentValue: number | null }[]) {
+  const byType = new Map<number, number>();
+  let unassigned = 0;
+  for (const i of items) {
+    const v = effectiveValue(i.principal, i.currentValue);
+    if (i.assetTypeId === null) unassigned += v;
+    else byType.set(i.assetTypeId, (byType.get(i.assetTypeId) ?? 0) + v);
+  }
+  return { byType, unassigned };
+}
+
 export type AssetCell = { month: string; assetTypeId: number; value: number };
 
 /** Total per bulan Asset Tracker; null untuk bulan tanpa isi sama sekali (bukan 0). */
