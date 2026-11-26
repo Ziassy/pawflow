@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { dialogCls } from "@/components/form-dialog";
 import { cn } from "@/lib/utils";
 
-type Opts = { title?: string; confirmLabel?: string; destructive?: boolean };
+type Opts = { title?: string; confirmLabel?: string; cancelLabel?: string; destructive?: boolean };
 
 /** const [dialog, confirm] = useConfirm(); if (await confirm("Yakin?")) ... */
 export function useConfirm() {
@@ -50,7 +50,7 @@ export function useConfirm() {
         </div>
         <div className="flex gap-2 border-t bg-secondary/50 px-4 py-3 sm:px-6 sm:py-4">
           <Button variant="outline" className="h-11 flex-1 rounded-control bg-card" onClick={() => close(false)}>
-            Batal
+            {state?.cancelLabel ?? "Batal"}
           </Button>
           <Button variant={danger ? "destructive" : "default"} className="h-11 flex-1 rounded-control" onClick={() => close(true)} autoFocus>
             {state?.confirmLabel ?? "Ya, lanjut"}

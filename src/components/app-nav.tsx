@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { LogOut, Menu, PanelLeftClose, PanelLeftOpen, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { logout } from "@/app/login/actions";
+import { useConfirm } from "@/components/confirm-dialog";
 import { NAV_GROUPS, NAV_ITEMS, SIDEBAR_COOKIE, isActive } from "./nav-items";
 import { READ_ONLY_HINT, useReadOnly } from "./read-only";
 
@@ -66,11 +67,19 @@ function UserChip({ user, collapsed }: { user: NavUser; collapsed?: boolean }) {
   );
 }
 
+/** Keluar dengan konfirmasi dulu (Ya / Tidak), agar tidak keluar karena salah ketuk. */
 function LogoutButton({ className, collapsed }: { className?: string; collapsed?: boolean }) {
+  const formRef = useRef<HTMLFormElement>(null);
+  const [dialog, confirm] = useConfirm();
   return (
-    <form action={logout}>
+    <form ref={formRef} action={logout}>
+      {dialog}
       <button
-        type="submit"
+        type="button"
+        onClick={async () => {
+          if (await confirm("Kamu perlu masuk lagi dengan username dan password untuk membuka data.", { title: "Keluar dari akun?", confirmLabel: "Ya, keluar", cancelLabel: "Tidak" }))
+            formRef.current?.requestSubmit();
+        }}
         title={collapsed ? "Keluar" : undefined}
         className={cn(
           "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-negative-soft hover:text-negative",
