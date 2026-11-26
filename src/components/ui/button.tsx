@@ -1,7 +1,5 @@
-"use client"
-
-import { Button as ButtonPrimitive } from "@base-ui/react/button"
-import { useReadOnly } from "@/components/read-only"
+import type { Button as ButtonPrimitive } from "@base-ui/react/button"
+import { ButtonBase } from "./button-base"
 import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "cn"
 
@@ -46,20 +44,16 @@ function Button({
   className,
   variant = "default",
   size = "default",
-  write,
-  disabled,
   ...props
 }: ButtonPrimitive.Props &
   VariantProps<typeof buttonVariants> & {
     /** Tombol yang mengubah data (tambah/edit/hapus): mati saat akun read-only */
     write?: boolean
   }) {
-  const readOnly = useReadOnly()
   return (
-    <ButtonPrimitive
+    <ButtonBase
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
-      disabled={disabled || (write && readOnly)}
       {...props}
     />
   )
