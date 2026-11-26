@@ -159,34 +159,70 @@ export function MobileTopBar() {
   );
 }
 
-/** Bottom nav melayang untuk HP. Item non-utama ada di sheet "Lainnya". */
+/**
+ * Isi satu slot dock: ikon selalu tampil, label hanya terlihat saat aktif.
+ * Label tetap ada di DOM (opacity 0) agar slot ikon-saja tetap punya nama aksesibel.
+ * Lebar label dianimasikan lewat grid-template-columns 0fr -> 1fr.
+ */
+function DockSlot({ icon: Icon, label, color, active }: { icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; label: string; color: string; active: boolean }) {
+  return (
+    <>
+      <Icon className="size-5 shrink-0" style={{ color }} />
+      <span
+        className={cn(
+          "grid min-w-0 transition-[grid-template-columns,opacity] duration-300 ease-out motion-reduce:transition-none",
+          active ? "grid-cols-[1fr] opacity-100" : "grid-cols-[0fr] opacity-0",
+        )}
+      >
+        <span className="truncate text-[13px] font-semibold text-foreground">{label}</span>
+      </span>
+    </>
+  );
+}
+
+/**
+ * Dock melayang untuk HP. Item aktif melebar dan memakai warna identitas menunya;
+ * item lain cuma ikon. Item non-utama ada di sheet "Lainnya", dan slot itu
+ * menampilkan halaman aktifnya bila pengguna sedang di salah satu halaman tersebut.
+ */
 export function BottomNav() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const primary = NAV_ITEMS.filter((i) => i.mobile);
-  const moreActive = NAV_ITEMS.filter((i) => !i.mobile).some((i) => isActive(pathname, i.href));
+  const moreItem = NAV_ITEMS.find((i) => !i.mobile && isActive(pathname, i.href));
 
-  const itemCls = (active: boolean) =>
+  // Slot aktif tumbuh (flex-grow dianimasikan); slot lain berbagi sisa lebar sebagai area sentuh.
+  const slotCls = (active: boolean) =>
     cn(
-      "flex flex-1 flex-col items-center justify-center gap-0.5 rounded-xl py-1.5 text-[11px] font-medium transition-colors",
-      active ? "bg-primary text-primary-foreground" : "text-muted-foreground active:bg-secondary",
+      "flex h-12 min-w-0 cursor-pointer basis-0 items-center justify-center gap-2 rounded-full px-3 outline-none",
+      "transition-[flex-grow,background-color,transform] duration-300 ease-out active:scale-95 motion-reduce:transition-none",
+      "focus-visible:ring-3 focus-visible:ring-ring/40",
+      active ? "grow-[2.6]" : "grow hover:bg-secondary",
     );
+  // Latar slot aktif: tint warna menu di atas kartu, label tetap text-foreground agar kontras AA aman.
+  const tint = (color: string) => ({ background: `color-mix(in oklab, ${color} 16%, var(--card))` });
 
   return (
     <nav
       aria-label="Navigasi utama"
-      className="fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-40 flex gap-1 rounded-2xl border bg-card p-1.5 shadow-card sm:inset-x-auto sm:left-1/2 sm:w-[28rem] sm:-translate-x-1/2 lg:hidden"
+      // Satu-satunya elemen blur: konten di-scroll di bawah dock, blur menjaga ikon tetap terbaca.
+      className="fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-40 flex gap-1 rounded-full border bg-card/90 p-1.5 shadow-card backdrop-blur-md sm:inset-x-auto sm:left-1/2 sm:w-[26rem] sm:-translate-x-1/2 lg:hidden"
     >
-      {primary.map(({ href, label, icon: Icon, color }) => (
-        <Link key={href} href={href} aria-current={isActive(pathname, href) ? "page" : undefined} className={itemCls(isActive(pathname, href))}>
-          <Icon className="size-5" style={isActive(pathname, href) ? undefined : { color }} />
-          {label}
-        </Link>
-      ))}
+      {primary.map(({ href, label, icon, color }) => {
+        const active = isActive(pathname, href);
+        return (
+          <Link key={href} href={href} aria-current={active ? "page" : undefined} className={slotCls(active)} style={active ? tint(color) : undefined}>
+            <DockSlot icon={icon} label={label} color={color} active={active} />
+          </Link>
+        );
+      })}
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetTrigger className={itemCls(moreActive)}>
-          <Menu className="size-5" />
-          Lainnya
+        <SheetTrigger className={slotCls(!!moreItem)} style={moreItem ? tint(moreItem.color) : undefined}>
+          {moreItem ? (
+            <DockSlot icon={moreItem.icon} label={moreItem.short ?? moreItem.label} color={moreItem.color} active />
+          ) : (
+            <DockSlot icon={Menu} label="Lainnya" color="var(--muted-foreground)" active={false} />
+          )}
         </SheetTrigger>
         <SheetContent side="bottom" className="rounded-t-3xl pb-[calc(1rem+env(safe-area-inset-bottom))]">
           <SheetHeader>
