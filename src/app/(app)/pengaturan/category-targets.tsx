@@ -65,7 +65,7 @@ export function CategoryTargets({ categories }: { categories: Cat[] }) {
       <p className="text-xs text-muted-foreground">
         Pemasukan tidak punya target. Total tidak harus 100%, tapi akan ditandai jika berbeda.
       </p>
-      <Button type="submit" className="h-10 rounded-control" disabled={pending || invalid}>
+      <Button write type="submit" className="h-10 rounded-control" disabled={pending || invalid}>
         Simpan target
       </Button>
     </form>

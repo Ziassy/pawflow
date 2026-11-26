@@ -50,7 +50,7 @@ export function GeneralSettings({
         <PercentField id="set-tax" label="Pajak bunga" hint="Dipotong dari bunga deposito" value={tax} onChange={setTax} />
         <PercentField id="set-drop" label="Alarm aset turun" hint="Peringatan di Asset Tracker" value={drop} onChange={setDrop} />
       </ul>
-      <Button type="submit" className="h-10 rounded-control" disabled={pending || invalid}>
+      <Button write type="submit" className="h-10 rounded-control" disabled={pending || invalid}>
         Simpan pengaturan
       </Button>
     </form>
@@ -90,7 +90,7 @@ export function NameListEditor({
 }) {
   const [editing, setEditing] = useState<{ id: number | null; name: string } | null>(null);
   const [dialog, confirm] = useConfirm();
-  const { pending, submit } = useSubmit();
+  const { pending, submit, readOnly } = useSubmit();
 
   const form = editing && (
     <form
@@ -101,7 +101,7 @@ export function NameListEditor({
       }}
     >
       <Input aria-label="Nama" className="h-9 rounded-control" value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} autoFocus />
-      <Button type="submit" size="icon" aria-label="Simpan" className="size-9 rounded-xl" disabled={pending || !editing.name.trim()}>
+      <Button write type="submit" size="icon" aria-label="Simpan" className="size-9 rounded-xl" disabled={pending || !editing.name.trim()}>
         <Check className="size-4" />
       </Button>
       <Button type="button" variant="ghost" size="icon" aria-label="Batal" className="size-9" onClick={() => setEditing(null)}>
@@ -122,13 +122,14 @@ export function NameListEditor({
           ) : (
             <li key={it.id} className="group flex max-w-full items-center gap-0.5 rounded-2xl bg-secondary py-1 pr-1 pl-3 text-sm font-medium">
               <span className="line-clamp-2 min-w-0">{it.name}</span>
-              <button type="button" aria-label={`Ganti nama ${it.name}`} className="grid size-9 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-card hover:text-foreground sm:size-6" onClick={() => setEditing({ ...it })}>
+              <button type="button" disabled={readOnly} aria-label={`Ganti nama ${it.name}`} className="grid size-9 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-card hover:text-foreground sm:size-6 disabled:cursor-not-allowed disabled:opacity-40" onClick={() => setEditing({ ...it })}>
                 <Pencil className="size-3" />
               </button>
               <button
                 type="button"
                 aria-label={`Hapus ${it.name}`}
-                className="grid size-9 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-card hover:text-negative sm:size-6"
+                disabled={readOnly}
+                className="grid size-9 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-card hover:text-negative sm:size-6 disabled:cursor-not-allowed disabled:opacity-40"
                 onClick={async () => {
                   if (await confirm(deleteWarning.replace("{name}", it.name), { confirmLabel: "Hapus", destructive: true })) submit(() => onDelete(it.id), "Dihapus");
                 }}
@@ -142,7 +143,7 @@ export function NameListEditor({
       {editing?.id === null ? (
         form
       ) : (
-        <Button variant="outline" className="h-9 rounded-control" onClick={() => setEditing({ id: null, name: "" })}>
+        <Button write variant="outline" className="h-9 rounded-control" onClick={() => setEditing({ id: null, name: "" })}>
           <Plus className="size-4" /> {addLabel}
         </Button>
       )}

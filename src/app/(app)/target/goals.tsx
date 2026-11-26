@@ -229,7 +229,7 @@ export function GoalList({ goals, assetTypes, birthMonth }: { goals: GoalView[];
       {dialog}
       <div className="flex items-center justify-between">
         <h2 className="text-[14px] font-semibold sm:text-[15px]">Tangga ternak uang</h2>
-        <Button
+        <Button write
           className="h-9 rounded-control"
           onClick={() =>
             setDraft({ id: null, name: "", targetAmount: null, startMonth: toMonthKey(new Date()), deadline: "", collectedMode: "MANUAL", manualCollected: null, assetTypeId: null, targetAge: null, note: "" })
@@ -274,13 +274,13 @@ export function GoalList({ goals, assetTypes, birthMonth }: { goals: GoalView[];
                   </div>
                 </div>
                 <div className="flex shrink-0 flex-col gap-0.5 sm:flex-row">
-                  <Button variant="ghost" size="icon-sm" aria-label="Naikkan prioritas" disabled={pending || i === 0} onClick={() => submit(() => moveGoal(g.id, -1))}>
+                  <Button write variant="ghost" size="icon-sm" aria-label="Naikkan prioritas" disabled={pending || i === 0} onClick={() => submit(() => moveGoal(g.id, -1))}>
                     <ArrowUp className="size-3.5" />
                   </Button>
-                  <Button variant="ghost" size="icon-sm" aria-label="Turunkan prioritas" disabled={pending || i === goals.length - 1} onClick={() => submit(() => moveGoal(g.id, 1))}>
+                  <Button write variant="ghost" size="icon-sm" aria-label="Turunkan prioritas" disabled={pending || i === goals.length - 1} onClick={() => submit(() => moveGoal(g.id, 1))}>
                     <ArrowDown className="size-3.5" />
                   </Button>
-                  <Button
+                  <Button write
                     variant="ghost"
                     size="icon-sm"
                     aria-label={`Edit ${g.name}`}
@@ -301,7 +301,7 @@ export function GoalList({ goals, assetTypes, birthMonth }: { goals: GoalView[];
                   >
                     <Pencil className="size-3.5" />
                   </Button>
-                  <Button
+                  <Button write
                     variant="ghost"
                     size="icon-sm"
                     aria-label={`Hapus ${g.name}`}

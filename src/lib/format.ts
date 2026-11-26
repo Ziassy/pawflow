@@ -63,6 +63,32 @@ export function formatMonthLong(key: string): string {
   return `${BULAN_PANJANG[Number(m[2]) - 1]} ${m[1]}`;
 }
 
+/**
+ * Zona waktu tetap untuk tampilan. Server (mis. Vercel, UTC) dan browser bisa
+ * beda zona; tanpa zona tetap, teks tanggal hasil SSR bisa beda dengan hasil
+ * render di browser dan memicu hydration mismatch.
+ */
+export const APP_TIME_ZONE = "Asia/Jakarta";
+
+/**
+ * Tanggal kalender (kolom `date`, disimpan sebagai UTC tengah malam) -> "1 Okt 2026".
+ * Diformat di UTC agar hari tidak bergeser di zona mana pun.
+ */
+export function formatDay(d: string | Date): string {
+  return new Date(d).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+}
+
+/** Waktu kejadian (mis. updatedAt) -> "1 Okt 2026" menurut APP_TIME_ZONE. */
+export function formatInstantDay(d: string | Date): string {
+  return new Date(d).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric", timeZone: APP_TIME_ZONE });
+}
+
+/** Hari ini menurut APP_TIME_ZONE -> "2026-11-26". Sama di server dan browser. */
+export function todayKey(now = new Date()): string {
+  // en-CA memformat sebagai YYYY-MM-DD
+  return now.toLocaleDateString("en-CA", { timeZone: APP_TIME_ZONE });
+}
+
 /** Date -> "2026-10" (zona waktu lokal) */
 export function toMonthKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;

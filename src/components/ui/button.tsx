@@ -1,4 +1,5 @@
-import { Button as ButtonPrimitive } from "@base-ui/react/button"
+import type { Button as ButtonPrimitive } from "@base-ui/react/button"
+import { ButtonBase } from "./button-base"
 import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "cn"
 
@@ -44,9 +45,13 @@ function Button({
   variant = "default",
   size = "default",
   ...props
-}: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+}: ButtonPrimitive.Props &
+  VariantProps<typeof buttonVariants> & {
+    /** Tombol yang mengubah data (tambah/edit/hapus): mati saat akun read-only */
+    write?: boolean
+  }) {
   return (
-    <ButtonPrimitive
+    <ButtonBase
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}

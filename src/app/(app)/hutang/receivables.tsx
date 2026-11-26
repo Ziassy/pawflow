@@ -11,7 +11,7 @@ import { DatePicker, MonthPicker } from "@/components/date-pickers";
 import { Field, FormActions, FormDialog, useSubmit } from "@/components/form-dialog";
 import { RupiahInput } from "@/components/rupiah-input";
 import { EmptyState, Progress, Segmented } from "@/components/ui-kit";
-import { formatMonth, formatPercent, formatRupiah, toMonthKey } from "@/lib/format";
+import { formatDay, formatMonth, formatPercent, formatRupiah, todayKey, toMonthKey } from "@/lib/format";
 import type { LedgerRow, ReceivableSummary } from "@/lib/debt";
 import { cn } from "@/lib/utils";
 import { addReceivableEntry, deleteReceivable, deleteReceivableEntry, saveReceivable, setInstallmentPaid } from "@/server/finance-actions";
@@ -49,11 +49,6 @@ type Draft = {
   initialDate: string;
 };
 
-const today = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-};
-const fmtDate = (d: string) => new Date(d).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
 
 function ReceivableForm({ draft, onClose }: { draft: Draft | null; onClose: () => void }) {
   const [d, setD] = useState(draft);
@@ -197,7 +192,7 @@ function ReceivableForm({ draft, onClose }: { draft: Draft | null; onClose: () =
 /** Form cepat catatan piutang bebas: Dia bayar / Pinjam lagi. */
 function EntryForm({ item, dir, setDir }: { item: BebasItem; dir: "BAYAR" | "PINJAM"; setDir: (d: "BAYAR" | "PINJAM") => void }) {
   const [amount, setAmount] = useState<number | null>(null);
-  const [date, setDate] = useState(today());
+  const [date, setDate] = useState(todayKey);
   const [desc, setDesc] = useState("");
   const [income, setIncome] = useState(true);
   const { pending, submit } = useSubmit();
@@ -247,7 +242,7 @@ function EntryForm({ item, dir, setDir }: { item: BebasItem; dir: "BAYAR" | "PIN
         ) : (
           <span className="text-xs text-muted-foreground">Hutang {item.name} akan bertambah.</span>
         )}
-        <Button type="submit" className="h-11 flex-1 rounded-control sm:h-10 sm:flex-none" disabled={pending || !amount}>
+        <Button write type="submit" className="h-11 flex-1 rounded-control sm:h-10 sm:flex-none" disabled={pending || !amount}>
           {dir === "BAYAR" ? <ArrowDownLeft className="size-4" /> : <ArrowUpRight className="size-4" />}
           {dir === "BAYAR" ? "Catat pembayaran" : "Catat pinjaman"}
         </Button>
@@ -280,10 +275,10 @@ function CardHeader({ item, onEdit, onDelete, done }: { item: ReceivableItem; on
         </div>
       </div>
       <div className="flex shrink-0">
-        <Button variant="ghost" size="icon" aria-label={`Edit ${item.name}`} onClick={onEdit}>
+        <Button write variant="ghost" size="icon" aria-label={`Edit ${item.name}`} onClick={onEdit}>
           <Pencil className="size-4" />
         </Button>
-        <Button variant="ghost" size="icon" aria-label={`Hapus ${item.name}`} onClick={onDelete}>
+        <Button write variant="ghost" size="icon" aria-label={`Hapus ${item.name}`} onClick={onDelete}>
           <Trash2 className="size-4" />
         </Button>
       </div>
@@ -319,7 +314,7 @@ export function Receivables({ items, current }: { items: ReceivableItem[]; curre
       return n;
     });
   const [dialog, confirm] = useConfirm();
-  const { submit } = useSubmit();
+  const { submit, readOnly } = useSubmit();
 
   const blank: Draft = {
     id: null,
@@ -332,7 +327,7 @@ export function Receivables({ items, current }: { items: ReceivableItem[]; curre
     startMonth: toMonthKey(new Date()),
     note: "",
     initialAmount: null,
-    initialDate: today(),
+    initialDate: todayKey(),
   };
   const edit = (r: ReceivableItem) =>
     setDraft({
@@ -356,7 +351,7 @@ export function Receivables({ items, current }: { items: ReceivableItem[]; curre
       {dialog}
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-[14px] font-semibold sm:text-[15px]">Daftar piutang</h2>
-        <Button className="h-10 rounded-control" onClick={() => setDraft(blank)}>
+        <Button write className="h-10 rounded-control" onClick={() => setDraft(blank)}>
           <Plus className="size-4" /> Tambah piutang
         </Button>
       </div>
@@ -379,14 +374,14 @@ export function Receivables({ items, current }: { items: ReceivableItem[]; curre
                   <div className="mt-1 text-right text-xs text-muted-foreground">{formatPercent(r.lent ? r.paid / r.lent : null, 0)} terbayar</div>
                 </div>
                 <div className="mt-3 flex gap-2 px-4 pb-4 sm:px-5">
-                  <Button
+                  <Button write
                     variant="outline"
                     className="h-10 flex-1 rounded-control bg-card"
                     onClick={() => openWith(r.id, "BAYAR")}
                   >
                     <ArrowDownLeft className="size-4 text-positive" /> Catat bayar
                   </Button>
-                  <Button variant="outline" className="h-10 flex-1 rounded-control bg-card" onClick={() => openWith(r.id, "PINJAM")}>
+                  <Button write variant="outline" className="h-10 flex-1 rounded-control bg-card" onClick={() => openWith(r.id, "PINJAM")}>
                     <ArrowUpRight className="size-4" /> Pinjam lagi
                   </Button>
                 </div>
@@ -409,7 +404,7 @@ export function Receivables({ items, current }: { items: ReceivableItem[]; curre
                         <li key={e.id} className="group grid grid-cols-[1fr_auto_auto] items-center gap-x-3 px-4 py-2.5 text-sm sm:px-5">
                           <span className="min-w-0">
                             <span className="line-clamp-2 block font-medium">{e.description}</span>
-                            <span className="block text-xs text-muted-foreground">{fmtDate(e.date)}</span>
+                            <span className="block text-xs text-muted-foreground">{formatDay(e.date)}</span>
                           </span>
                           <span className={cn("text-right font-semibold whitespace-nowrap tabular-nums", e.credit ? "text-positive" : "text-foreground")}>
                             {e.credit ? `−${formatRupiah(e.credit)}` : `+${formatRupiah(e.debit)}`}
@@ -419,7 +414,8 @@ export function Receivables({ items, current }: { items: ReceivableItem[]; curre
                             <button
                               type="button"
                               aria-label="Hapus catatan"
-                              className="grid size-7 shrink-0 place-items-center rounded-lg opacity-60 hover:bg-secondary hover:text-negative group-hover:opacity-100"
+                              disabled={readOnly}
+                              className="grid size-7 shrink-0 place-items-center rounded-lg opacity-60 hover:bg-secondary hover:text-negative group-hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-40"
                               onClick={async () => {
                                 if (await confirm(`Hapus catatan "${e.description}" ${formatRupiah(e.amount)}?`, { confirmLabel: "Hapus", destructive: true }))
                                   submit(() => deleteReceivableEntry(e.id), "Catatan dihapus");
@@ -468,7 +464,7 @@ export function Receivables({ items, current }: { items: ReceivableItem[]; curre
                 {r.installments.map((i) => (
                   <li key={i.id}>
                     <label className={cn("flex min-h-12 cursor-pointer items-center gap-3 px-4 py-2 sm:px-5", i.month === current && !i.paid && "bg-warning-soft/60")}>
-                      <Checkbox
+                      <Checkbox write
                         aria-label={`Cicilan ${i.seq} ${r.name} lunas`}
                         checked={i.paid}
                         className="size-5"

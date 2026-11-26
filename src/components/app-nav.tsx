@@ -2,12 +2,28 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { LogOut, Menu, PanelLeftClose, PanelLeftOpen, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { logout } from "@/app/login/actions";
+import { useConfirm } from "@/components/confirm-dialog";
 import { NAV_GROUPS, NAV_ITEMS, SIDEBAR_COOKIE, isActive } from "./nav-items";
+import { READ_ONLY_HINT, useReadOnly } from "./read-only";
+
+/**
+ * Link ke halaman pencatatan. Akun read-only: tampil mati (tanpa href, aria-disabled)
+ * karena tidak ada yang bisa dicatat.
+ */
+function WriteLink({ href, className, children, ...rest }: React.ComponentProps<typeof Link> & { href: string }) {
+  const readOnly = useReadOnly();
+  if (!readOnly) return <Link href={href} className={className} {...rest}>{children}</Link>;
+  return (
+    <span role="link" aria-disabled="true" aria-label={rest["aria-label"]} title={READ_ONLY_HINT} className={cn(className, "cursor-not-allowed opacity-50")}>
+      {children}
+    </span>
+  );
+}
 
 function Brand({ collapsed }: { collapsed?: boolean }) {
   return (
@@ -17,7 +33,7 @@ function Brand({ collapsed }: { collapsed?: boolean }) {
       {!collapsed && (
         <span className="leading-tight">
           <span className="block text-base font-bold tracking-tight sm:text-[17px]">
-            <span className="text-[#14285a]">Paw</span>
+            <span className="text-foreground">Paw</span>
             <span className="text-primary">Flow</span>
           </span>
           <span className="block text-[11px] text-muted-foreground">Find your flow</span>
@@ -27,11 +43,43 @@ function Brand({ collapsed }: { collapsed?: boolean }) {
   );
 }
 
-function LogoutButton({ className, collapsed }: { className?: string; collapsed?: boolean }) {
+type NavUser = { name: string; username: string };
+
+/** Siapa yang sedang masuk. Inisial sebagai penanda, bukan foto. */
+function UserChip({ user, collapsed }: { user: NavUser; collapsed?: boolean }) {
+  const initial = user.name.trim().charAt(0).toUpperCase() || "?";
   return (
-    <form action={logout}>
+    <div className={cn("flex items-center gap-3 px-3 py-2", collapsed && "justify-center px-0")} title={collapsed ? `${user.name} (@${user.username})` : undefined}>
+      <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-full bg-accent text-sm font-semibold text-accent-foreground">
+        {initial}
+      </span>
+      {collapsed ? (
+        <span className="sr-only">
+          Masuk sebagai {user.name} (@{user.username})
+        </span>
+      ) : (
+        <span className="min-w-0 leading-tight">
+          <span className="block truncate text-sm font-medium">{user.name}</span>
+          <span className="block truncate text-xs text-muted-foreground">@{user.username}</span>
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** Keluar dengan konfirmasi dulu (Ya / Tidak), agar tidak keluar karena salah ketuk. */
+function LogoutButton({ className, collapsed }: { className?: string; collapsed?: boolean }) {
+  const formRef = useRef<HTMLFormElement>(null);
+  const [dialog, confirm] = useConfirm();
+  return (
+    <form ref={formRef} action={logout}>
+      {dialog}
       <button
-        type="submit"
+        type="button"
+        onClick={async () => {
+          if (await confirm("Kamu perlu masuk lagi dengan username dan password untuk membuka data.", { title: "Keluar dari akun?", confirmLabel: "Ya, keluar", cancelLabel: "Tidak" }))
+            formRef.current?.requestSubmit();
+        }}
         title={collapsed ? "Keluar" : undefined}
         className={cn(
           "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-negative-soft hover:text-negative",
@@ -47,7 +95,7 @@ function LogoutButton({ className, collapsed }: { className?: string; collapsed?
 }
 
 /** Sidebar desktop: menu berkelompok, bisa diciutkan (diingat di cookie). */
-export function Sidebar({ defaultCollapsed = false }: { defaultCollapsed?: boolean }) {
+export function Sidebar({ defaultCollapsed = false, user }: { defaultCollapsed?: boolean; user: NavUser }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
 
@@ -68,7 +116,7 @@ export function Sidebar({ defaultCollapsed = false }: { defaultCollapsed?: boole
         <Brand collapsed={collapsed} />
       </div>
 
-      <Link
+      <WriteLink
         href="/catat"
         title={collapsed ? "Catat transaksi" : undefined}
         className={cn(
@@ -78,7 +126,7 @@ export function Sidebar({ defaultCollapsed = false }: { defaultCollapsed?: boole
       >
         <Plus className="size-4" />
         {!collapsed && "Catat transaksi"}
-      </Link>
+      </WriteLink>
 
       <nav className="mt-5 flex-1 space-y-5 overflow-y-auto" aria-label="Navigasi utama">
         {NAV_GROUPS.map((g) => (
@@ -129,6 +177,7 @@ export function Sidebar({ defaultCollapsed = false }: { defaultCollapsed?: boole
       </nav>
 
       <div className="space-y-1 border-t pt-3">
+        <UserChip user={user} collapsed={collapsed} />
         <button
           type="button"
           onClick={toggle}
@@ -150,81 +199,144 @@ export function Sidebar({ defaultCollapsed = false }: { defaultCollapsed?: boole
 /** Top bar untuk HP. */
 export function MobileTopBar() {
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b bg-background px-4 lg:hidden">
+    <header className="sticky top-0 z-30 flex h-14 items-center border-b bg-background px-4 lg:hidden">
       <Brand />
-      <Link href="/catat" aria-label="Catat transaksi" className="grid size-9 place-items-center rounded-xl bg-primary text-primary-foreground shadow-card">
-        <Plus className="size-4" />
-      </Link>
     </header>
   );
 }
 
-/** Bottom nav melayang untuk HP. Item non-utama ada di sheet "Lainnya". */
-export function BottomNav() {
+/**
+ * Tombol catat transaksi melayang untuk HP, tepat di atas slot "Lainnya" di ujung kanan dock:
+ * zona jempol kanan. Tinggi dock = 62px (h-12 + p-1.5 + border), jarak ke dock 0.75rem.
+ * /catat mengarahkan ke halaman bulan berjalan.
+ */
+function QuickAddButton() {
+  return (
+    <WriteLink
+      href="/catat"
+      aria-label="Catat transaksi"
+      title="Catat transaksi"
+      className={cn(
+        "fixed right-[1.125rem] bottom-[calc(env(safe-area-inset-bottom)+0.75rem+62px+0.75rem)] z-40 grid size-14 place-items-center rounded-full",
+        "bg-primary text-primary-foreground shadow-lg ring-4 ring-background outline-none",
+        "transition-transform duration-150 active:scale-95 motion-reduce:transition-none focus-visible:ring-ring/50",
+        // sm: dock 26rem di tengah -> sejajarkan dengan ujung kanannya
+        "sm:right-[calc(50%-13rem+0.375rem)] lg:hidden",
+      )}
+    >
+      <Plus className="size-6" strokeWidth={2.5} />
+    </WriteLink>
+  );
+}
+
+/**
+ * Isi satu slot dock: ikon selalu tampil, label hanya terlihat saat aktif.
+ * Label tetap ada di DOM (opacity 0) agar slot ikon-saja tetap punya nama aksesibel.
+ * Lebar label dianimasikan lewat grid-template-columns 0fr -> 1fr.
+ */
+function DockSlot({ icon: Icon, label, color, active }: { icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; label: string; color: string; active: boolean }) {
+  return (
+    <>
+      <Icon className="size-5 shrink-0" style={{ color }} />
+      <span
+        className={cn(
+          "grid min-w-0 transition-[grid-template-columns,opacity] duration-300 ease-out motion-reduce:transition-none",
+          active ? "grid-cols-[1fr] opacity-100" : "grid-cols-[0fr] opacity-0",
+        )}
+      >
+        <span className="truncate text-[13px] font-semibold text-foreground">{label}</span>
+      </span>
+    </>
+  );
+}
+
+/**
+ * Dock melayang untuk HP. Item aktif melebar dan memakai warna identitas menunya;
+ * item lain cuma ikon. Item non-utama ada di sheet "Lainnya", dan slot itu
+ * menampilkan halaman aktifnya bila pengguna sedang di salah satu halaman tersebut.
+ */
+export function BottomNav({ user }: { user: NavUser }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const primary = NAV_ITEMS.filter((i) => i.mobile);
-  const moreActive = NAV_ITEMS.filter((i) => !i.mobile).some((i) => isActive(pathname, i.href));
+  const moreItem = NAV_ITEMS.find((i) => !i.mobile && isActive(pathname, i.href));
 
-  const itemCls = (active: boolean) =>
+  // Slot aktif tumbuh (flex-grow dianimasikan); slot lain berbagi sisa lebar sebagai area sentuh.
+  const slotCls = (active: boolean) =>
     cn(
-      "flex flex-1 flex-col items-center justify-center gap-0.5 rounded-xl py-1.5 text-[11px] font-medium transition-colors",
-      active ? "bg-primary text-primary-foreground" : "text-muted-foreground active:bg-secondary",
+      "flex h-12 min-w-0 cursor-pointer basis-0 items-center justify-center gap-2 rounded-full px-3 outline-none",
+      "transition-[flex-grow,background-color,transform] duration-300 ease-out active:scale-95 motion-reduce:transition-none",
+      "focus-visible:ring-3 focus-visible:ring-ring/40",
+      active ? "grow-[2.6]" : "grow hover:bg-secondary",
     );
+  // Latar slot aktif: tint warna menu di atas kartu, label tetap text-foreground agar kontras AA aman.
+  const tint = (color: string) => ({ background: `color-mix(in oklab, ${color} 16%, var(--card))` });
 
   return (
-    <nav
-      aria-label="Navigasi utama"
-      className="fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-40 flex gap-1 rounded-2xl border bg-card p-1.5 shadow-card sm:inset-x-auto sm:left-1/2 sm:w-[28rem] sm:-translate-x-1/2 lg:hidden"
-    >
-      {primary.map(({ href, label, icon: Icon, color }) => (
-        <Link key={href} href={href} aria-current={isActive(pathname, href) ? "page" : undefined} className={itemCls(isActive(pathname, href))}>
-          <Icon className="size-5" style={isActive(pathname, href) ? undefined : { color }} />
-          {label}
-        </Link>
-      ))}
-      <Sheet open={open} onOpenChange={setOpen}>
-        <SheetTrigger className={itemCls(moreActive)}>
-          <Menu className="size-5" />
-          Lainnya
-        </SheetTrigger>
-        <SheetContent side="bottom" className="rounded-t-3xl pb-[calc(1rem+env(safe-area-inset-bottom))]">
-          <SheetHeader>
-            <SheetTitle>Menu</SheetTitle>
-          </SheetHeader>
-          <div className="space-y-4 px-4">
-            {NAV_GROUPS.map((g) => {
-              const items = g.items.filter((i) => !i.mobile);
-              if (!items.length) return null;
-              return (
-                <div key={g.label}>
-                  <div className="mb-1 px-3 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">{g.label}</div>
-                  {items.map(({ href, label, icon: Icon, hint, color }) => (
-                    <Link
-                      key={href}
-                      href={href}
-                      onClick={() => setOpen(false)}
-                      className={cn("flex items-center gap-3 rounded-xl px-3 py-2.5", isActive(pathname, href) ? "bg-accent text-accent-foreground" : "text-foreground")}
-                    >
-                      <span
-                        className="grid size-9 place-items-center rounded-lg"
-                        style={isActive(pathname, href) ? { background: color, color: "white" } : { background: `color-mix(in oklab, ${color} 13%, transparent)`, color }}
+    <>
+      <QuickAddButton />
+      <nav
+        aria-label="Navigasi utama"
+        // Satu-satunya elemen blur: konten di-scroll di bawah dock, blur menjaga ikon tetap terbaca.
+        className="fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-40 flex gap-1 rounded-full border bg-card/90 p-1.5 shadow-card backdrop-blur-md sm:inset-x-auto sm:left-1/2 sm:w-[26rem] sm:-translate-x-1/2 lg:hidden"
+      >
+        {primary.map(({ href, label, icon, color }) => {
+          const active = isActive(pathname, href);
+          return (
+            <Link key={href} href={href} aria-current={active ? "page" : undefined} className={slotCls(active)} style={active ? tint(color) : undefined}>
+              <DockSlot icon={icon} label={label} color={color} active={active} />
+            </Link>
+          );
+        })}
+        <Sheet open={open} onOpenChange={setOpen}>
+          <SheetTrigger className={slotCls(!!moreItem)} style={moreItem ? tint(moreItem.color) : undefined}>
+            {moreItem ? (
+              <DockSlot icon={moreItem.icon} label={moreItem.short ?? moreItem.label} color={moreItem.color} active />
+            ) : (
+              <DockSlot icon={Menu} label="Lainnya" color="var(--muted-foreground)" active={false} />
+            )}
+          </SheetTrigger>
+          <SheetContent side="bottom" className="rounded-t-3xl pb-[calc(1rem+env(safe-area-inset-bottom))]">
+            <SheetHeader>
+              <SheetTitle>Menu</SheetTitle>
+            </SheetHeader>
+            <div className="mx-4 rounded-2xl bg-secondary/60">
+              <UserChip user={user} />
+            </div>
+            <div className="space-y-4 px-4">
+              {NAV_GROUPS.map((g) => {
+                const items = g.items.filter((i) => !i.mobile);
+                if (!items.length) return null;
+                return (
+                  <div key={g.label}>
+                    <div className="mb-1 px-3 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">{g.label}</div>
+                    {items.map(({ href, label, icon: Icon, hint, color }) => (
+                      <Link
+                        key={href}
+                        href={href}
+                        onClick={() => setOpen(false)}
+                        className={cn("flex items-center gap-3 rounded-xl px-3 py-2.5", isActive(pathname, href) ? "bg-accent text-accent-foreground" : "text-foreground")}
                       >
-                        <Icon className="size-4.5" />
-                      </span>
-                      <span>
-                        <span className="block text-[14px] font-medium sm:text-[15px]">{label}</span>
-                        {hint && <span className="block text-xs text-muted-foreground">{hint}</span>}
-                      </span>
-                    </Link>
-                  ))}
-                </div>
-              );
-            })}
-            <LogoutButton className="py-3 text-base" />
-          </div>
-        </SheetContent>
-      </Sheet>
-    </nav>
+                        <span
+                          className="grid size-9 place-items-center rounded-lg"
+                          style={isActive(pathname, href) ? { background: color, color: "white" } : { background: `color-mix(in oklab, ${color} 13%, transparent)`, color }}
+                        >
+                          <Icon className="size-4.5" />
+                        </span>
+                        <span>
+                          <span className="block text-[14px] font-medium sm:text-[15px]">{label}</span>
+                          {hint && <span className="block text-xs text-muted-foreground">{hint}</span>}
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                );
+              })}
+              <LogoutButton className="py-3 text-base" />
+            </div>
+          </SheetContent>
+        </Sheet>
+      </nav>
+    </>
   );
 }

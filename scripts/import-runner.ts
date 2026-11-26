@@ -268,7 +268,7 @@ export async function runImport(
         // 5. Verifikasi: hitung ulang dari transaksi di DB vs ringkasan_bulanan.csv
         const cats = await tx.category.findMany();
         for (const e of plan.expectations) {
-          const p = await tx.monthlyPeriod.findUnique({ where: { month: e.month }, include: { transactions: true } });
+          const p = await tx.monthlyPeriod.findFirst({ where: { month: e.month }, include: { transactions: true } });
           mismatches.push(...verifyMonth(e, p ? summarizeMonth(p.salary, p.transactions, cats) : undefined));
         }
 

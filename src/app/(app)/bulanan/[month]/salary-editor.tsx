@@ -24,7 +24,7 @@ export function SalaryEditor({
 }) {
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState<number | null>(salary);
-  const { pending, submit } = useSubmit();
+  const { pending, submit, readOnly } = useSubmit();
   const suggestions = [
     prev?.salary ? { label: `Sama dengan ${formatMonth(prev.month)}`, value: prev.salary } : null,
     salary !== null ? { label: "Kosongkan", value: null } : null,
@@ -34,12 +34,13 @@ export function SalaryEditor({
     <>
       <button
         type="button"
+        disabled={readOnly}
         onClick={() => {
           setValue(salary);
           setOpen(true);
         }}
         className={cn(
-          "inline-flex shrink-0 items-center gap-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors max-sm:min-h-9",
+          "inline-flex shrink-0 items-center gap-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors max-sm:min-h-9 disabled:cursor-not-allowed disabled:opacity-50",
           variant === "hero" ? "bg-white/15 px-3 py-1.5 text-white hover:bg-white/25" : "bg-accent px-3 py-1.5 text-accent-foreground hover:bg-accent/70",
         )}
       >

@@ -4,15 +4,16 @@ import { PageHeader } from "@/components/page-header";
 import { EmptyState, HeroCard, Panel, StatCard, TabLinks } from "@/components/ui-kit";
 import { db } from "@/lib/db";
 import { addMonths, formatMonth, formatRupiah, isMonthKey, toMonthKey } from "@/lib/format";
-import { ledger, overallPayoff, personalDebtBalance, projectDebt, sortByAmountDesc, summarizeReceivable } from "@/lib/debt";
-import { DebtGrid, DebtList, PersonalDebts } from "./debts";
+import { ledger, overallPayoff, projectDebt, sortByAmountDesc, summarizeReceivable } from "@/lib/debt";
+import { DebtGrid, DebtList } from "./debts";
+import { PersonalDebts, type PersonalDebtItem } from "./personal-debts";
 import { Receivables, type ReceivableItem } from "./receivables";
 
 export const metadata: Metadata = { title: "Hutang & Piutang" };
 
 const TABS = [
   { key: "kartu", label: "Kartu & cicilan", href: "/hutang" },
-  { key: "orang", label: "Hutang ke orang", href: "/hutang?tab=orang" },
+  { key: "orang", label: "Hutang", href: "/hutang?tab=orang" },
   { key: "piutang", label: "Piutang", href: "/hutang?tab=piutang" },
 ];
 
@@ -143,31 +144,49 @@ async function PersonalTab() {
   const debts = await db.debt.findMany({
     where: { kind: "PRIBADI" },
     orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
-    include: { entries: { orderBy: { date: "asc" } } },
+    include: { entries: true, plans: { orderBy: { month: "asc" } } },
   });
-  const total = debts.reduce((s, d) => s + personalDebtBalance(d.entries), 0);
+  const current = toMonthKey(new Date());
+  const items: PersonalDebtItem[] = debts.map((d) => {
+    const base = { id: d.id, name: d.name, dueDay: d.dueDay, note: d.note };
+    if (d.repayment === "CICILAN") {
+      return {
+        ...base,
+        repayment: "CICILAN" as const,
+        principal: d.principal,
+        installmentCount: d.installmentCount,
+        installmentAmount: d.installmentAmount,
+        startMonth: d.startMonth ?? current,
+        summary: summarizeReceivable(d.principal, d.plans),
+        installments: d.plans.map((p, i) => ({ id: p.id, seq: i + 1, month: p.month, amount: p.amount, paid: p.paid })),
+      };
+    }
+    const l = ledger(d.entries);
+    return {
+      ...base,
+      repayment: "BEBAS" as const,
+      borrowed: l.totalDebit,
+      paid: l.totalCredit,
+      balance: l.balance,
+      rows: l.rows.map((x) => ({ ...x, date: new Date(x.date).toISOString() })),
+    };
+  });
+  const remaining = (it: PersonalDebtItem) => (it.repayment === "BEBAS" ? it.balance : it.summary.remaining);
+  const total = items.reduce((s, it) => s + Math.max(0, remaining(it)), 0);
+  const dueThisMonth = debts.filter((d) => d.repayment === "CICILAN").flatMap((d) => d.plans).filter((p) => p.month === current && !p.paid);
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
-        <StatCard icon={Landmark} tone="negative" label="Total hutang ke orang" value={formatRupiah(total)} />
-        <StatCard icon={HandCoins} label="Jumlah orang" value={`${debts.length}`} />
+        <StatCard icon={Landmark} tone="negative" label="Total hutang" value={formatRupiah(total)} hint={`${items.length} orang`} />
+        <StatCard
+          icon={CalendarCheck}
+          tone={dueThisMonth.length ? "negative" : "neutral"}
+          label="Cicilan bulan ini"
+          value={formatRupiah(dueThisMonth.reduce((s, p) => s + p.amount, 0))}
+          hint={`${dueThisMonth.length} belum dibayar`}
+        />
       </div>
-      <PersonalDebts
-        debts={sortByAmountDesc(debts, (d) => personalDebtBalance(d.entries)).map((d) => ({
-          id: d.id,
-          name: d.name,
-          note: d.note,
-          active: d.active,
-          balance: personalDebtBalance(d.entries),
-          entries: ledger(d.entries).rows.map((e) => ({
-            id: e.id,
-            date: new Date(e.date).toISOString().slice(0, 10),
-            description: e.description,
-            amount: e.amount,
-            balance: e.balance,
-          })),
-        }))}
-      />
+      <PersonalDebts current={current} items={sortByAmountDesc(items, remaining)} />
     </div>
   );
 }

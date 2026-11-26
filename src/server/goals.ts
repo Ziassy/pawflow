@@ -38,7 +38,7 @@ export type GoalView = {
 export async function getGoalsView(now = new Date()) {
   const [goals, settings, snapshots, txSums, periods] = await Promise.all([
     db.goal.findMany({ orderBy: [{ priority: "asc" }, { id: "asc" }], include: { assetType: true } }),
-    db.appSetting.findUnique({ where: { id: 1 } }),
+    db.appSetting.findFirst(),
     db.assetSnapshot.findMany(),
     db.transaction.groupBy({ by: ["goalId"], where: { goalId: { not: null } }, _sum: { amount: true } }),
     getAllPeriodSummaries(),

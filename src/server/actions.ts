@@ -41,7 +41,7 @@ export async function createPeriod(input: z.input<typeof zCreatePeriod>): Promis
     const data = zCreatePeriod.parse(input);
     month = data.month;
     // Aturan 3: satu bulan = satu sumber data
-    if (await db.monthlyPeriod.findUnique({ where: { month } })) {
+    if (await db.monthlyPeriod.findFirst({ where: { month } })) {
       return { ok: false, error: `${formatMonth(month)} sudah ada` };
     }
 
@@ -63,7 +63,7 @@ export async function createPeriod(input: z.input<typeof zCreatePeriod>): Promis
       salary = prev.salary;
       // Transaksi otomatis (hutang/piutang) tidak disalin agar tidak dobel
       items = prev.transactions
-        .filter((t) => t.source !== "DEBT_PLAN" && t.source !== "RECEIVABLE")
+        .filter((t) => t.source !== "DEBT_PLAN" && t.source !== "DEBT_ENTRY" && t.source !== "RECEIVABLE")
         .map((t) => ({ name: t.name, categoryId: t.categoryId, amount: t.amount, note: t.note, source: "MANUAL" }));
     }
 

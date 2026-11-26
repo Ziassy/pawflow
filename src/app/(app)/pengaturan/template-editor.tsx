@@ -6,6 +6,7 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Link2, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useReadOnly } from "@/components/read-only";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RupiahInput } from "@/components/rupiah-input";
@@ -25,6 +26,7 @@ export function TemplateEditor({ templates, categories, debts }: { templates: Tp
   const [draft, setDraft] = useState<Draft | null>(null);
   const [pending, start] = useTransition();
   const [dialog, confirm] = useConfirm();
+  const readOnly = useReadOnly();
   const catName = (id: number) => categories.find((c) => c.id === id)?.name ?? "–";
   const debtName = (id: number | null) => (id ? (debts.find((d) => d.id === id)?.name ?? null) : null);
 
@@ -90,7 +92,7 @@ export function TemplateEditor({ templates, categories, debts }: { templates: Tp
           <Button variant="outline" className="h-9" onClick={() => setDraft(null)}>
             Batal
           </Button>
-          <Button className="h-9" disabled={pending} onClick={save}>
+          <Button write className="h-9" disabled={pending} onClick={save}>
             Simpan
           </Button>
         </div>
@@ -113,6 +115,7 @@ export function TemplateEditor({ templates, categories, debts }: { templates: Tp
                 type="button"
                 className="flex min-h-11 flex-1 items-center justify-between gap-3 py-2 text-left"
                 onClick={() => setDraft({ ...t })}
+                disabled={readOnly}
               >
                 <span className={t.active ? "" : "text-muted-foreground line-through"}>{t.name}</span>
                 <span className="text-right text-muted-foreground">
@@ -124,7 +127,7 @@ export function TemplateEditor({ templates, categories, debts }: { templates: Tp
                   )}
                 </span>
               </button>
-              <Button
+              <Button write
                 variant="ghost"
                 size="icon"
                 aria-label={`Hapus ${t.name}`}
@@ -146,7 +149,7 @@ export function TemplateEditor({ templates, categories, debts }: { templates: Tp
       {draft?.id === null ? (
         form
       ) : (
-        <Button variant="outline" className="h-10" onClick={() => setDraft({ ...EMPTY })}>
+        <Button write variant="outline" className="h-10" onClick={() => setDraft({ ...EMPTY })}>
           <Plus className="size-4" /> Tambah item rutin
         </Button>
       )}

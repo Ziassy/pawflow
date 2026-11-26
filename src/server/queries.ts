@@ -46,7 +46,7 @@ export const getAllPeriodSummaries = cache(async (): Promise<PeriodRow[]> => {
 export async function getPeriodDetail(month: string) {
   const [categories, period] = await Promise.all([
     getCategories(),
-    db.monthlyPeriod.findUnique({
+    db.monthlyPeriod.findFirst({
       where: { month },
       include: {
         transactions: {

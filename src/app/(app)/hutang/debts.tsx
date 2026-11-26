@@ -1,27 +1,23 @@
 "use client";
 
 import { Dropdown } from "@/components/dropdown";
-import { DatePicker, MonthPicker } from "@/components/date-pickers";
+import { MonthPicker } from "@/components/date-pickers";
 import { useState } from "react";
-import { CheckCircle2, ChevronsDown, ChevronsUp, CreditCard, History, Pencil, Plus, Trash2, UserRound } from "lucide-react";
+import { CheckCircle2, ChevronsDown, ChevronsUp, CreditCard, Pencil, Plus, Trash2, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useConfirm } from "@/components/confirm-dialog";
 import { EditableMoneyCell } from "@/components/editable-money";
-import { Disclosure } from "@/components/disclosure";
 import { Field, FormActions, FormDialog, useSubmit } from "@/components/form-dialog";
-import { RupiahInput } from "@/components/rupiah-input";
-import { EmptyState, Progress, Segmented } from "@/components/ui-kit";
+import { Segmented } from "@/components/ui-kit";
 import { DEBT_KIND, DEBT_KIND_LABEL } from "@/lib/constants";
 import { useRouter } from "next/navigation";
 import { signalNavigate } from "@/components/nav-progress";
 import { addMonths, formatMonth, formatRupiah } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
-  addDebtEntry,
   deleteDebt,
-  deleteDebtEntry,
   saveDebt,
   setDebtPlan,
   setDebtPlanPaid,
@@ -114,7 +110,7 @@ export function DebtList({ debts }: { debts: DebtCard[] }) {
       {dialog}
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-[14px] font-semibold sm:text-[15px]">Daftar kartu & cicilan</h2>
-        <Button className="h-9 rounded-control" onClick={() => setDraft({ id: null, name: "", kind: "KARTU", note: "", active: true })}>
+        <Button write className="h-9 rounded-control" onClick={() => setDraft({ id: null, name: "", kind: "KARTU", note: "", active: true })}>
           <Plus className="size-4" /> Tambah
         </Button>
       </div>
@@ -136,10 +132,10 @@ export function DebtList({ debts }: { debts: DebtCard[] }) {
                   </div>
                 </div>
                 <div className="flex shrink-0">
-                  <Button variant="ghost" size="icon" aria-label={`Edit ${d.name}`} onClick={() => setDraft({ id: d.id, name: d.name, kind: d.kind as DebtKind, note: d.note ?? "", active: d.active })}>
+                  <Button write variant="ghost" size="icon" aria-label={`Edit ${d.name}`} onClick={() => setDraft({ id: d.id, name: d.name, kind: d.kind as DebtKind, note: d.note ?? "", active: d.active })}>
                     <Pencil className="size-4" />
                   </Button>
-                  <Button
+                  <Button write
                     variant="ghost"
                     size="icon"
                     aria-label={`Hapus ${d.name}`}
@@ -298,7 +294,7 @@ export function DebtGrid({
                             onSave={(v) => setDebtPlan(d.id, m, v)}
                           />
                           {plan ? (
-                            <Checkbox
+                            <Checkbox write
                               aria-label={`${d.name} ${formatMonth(m)} sudah dibayar`}
                               checked={plan.paid}
                               className="size-5"
@@ -336,180 +332,5 @@ export function DebtGrid({
         </table>
       </div>
     </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Hutang ke orang
-// ---------------------------------------------------------------------------
-
-type Personal = {
-  id: number;
-  name: string;
-  note: string | null;
-  active: boolean;
-  balance: number;
-  entries: { id: number; date: string; description: string; amount: number; balance: number }[];
-};
-
-function EntryForm({ debtId, dir, setDir }: { debtId: number; dir: "pinjam" | "bayar"; setDir: (d: "pinjam" | "bayar") => void }) {
-  const t = new Date();
-  const today = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
-  const [date, setDate] = useState(today);
-  const [desc, setDesc] = useState("");
-  const [amount, setAmount] = useState<number | null>(null);
-  const { pending, submit } = useSubmit();
-  return (
-    <form
-      className="space-y-3 border-t bg-secondary/40 p-4"
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (!amount) return;
-        submit(
-          () => addDebtEntry(debtId, { date, description: desc.trim() || (dir === "pinjam" ? "Pinjam" : "Bayar"), amount: dir === "pinjam" ? amount : -amount }),
-          "Dicatat",
-          () => {
-            setDesc("");
-            setAmount(null);
-          },
-        );
-      }}
-    >
-      <Segmented
-        aria-label="Arah"
-        className="flex w-full"
-        value={dir}
-        onChange={setDir}
-        options={[
-          { value: "bayar", label: "Aku bayar" },
-          { value: "pinjam", label: "Pinjam lagi" },
-        ]}
-      />
-      <div className="grid gap-2 sm:grid-cols-2">
-        <RupiahInput aria-label="Nominal" placeholder="0" className="h-11 sm:h-10" value={amount} onChange={setAmount} />
-        <DatePicker aria-label="Tanggal" value={date} onChange={(v) => v && setDate(v)} />
-      </div>
-      <Input aria-label="Keterangan" placeholder="Keterangan (opsional)" className="h-11 sm:h-10" value={desc} onChange={(e) => setDesc(e.target.value)} />
-      <Button type="submit" className="h-11 w-full rounded-control sm:h-10" disabled={pending || !amount}>
-        {dir === "bayar" ? "Catat pembayaran" : "Catat pinjaman"}
-      </Button>
-    </form>
-  );
-}
-
-export function PersonalDebts({ debts }: { debts: Personal[] }) {
-  const [draft, setDraft] = useState<DebtDraft | null>(null);
-  const [openId, setOpenId] = useState<number | null>(null);
-  const [dirs, setDirs] = useState<Record<number, "pinjam" | "bayar">>({});
-  const [dialog, confirm] = useConfirm();
-  const { submit } = useSubmit();
-  const openWith = (id: number, d: "pinjam" | "bayar") => {
-    setDirs((x) => ({ ...x, [id]: d }));
-    setOpenId(id);
-  };
-  return (
-    <section className="space-y-4">
-      {dialog}
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-[14px] font-semibold sm:text-[15px]">Per orang</h2>
-        <Button className="h-10 rounded-control" onClick={() => setDraft({ id: null, name: "", kind: "PRIBADI", note: "", active: true })}>
-          <Plus className="size-4" /> Tambah orang
-        </Button>
-      </div>
-      {debts.length === 0 && <EmptyState>Belum ada catatan hutang ke orang.</EmptyState>}
-      <div className="grid items-start gap-4 lg:grid-cols-2">
-        {debts.map((d) => {
-          const borrowed = d.entries.reduce((s, e) => s + Math.max(0, e.amount), 0);
-          const paid = d.entries.reduce((s, e) => s + Math.max(0, -e.amount), 0);
-          const done = borrowed > 0 && d.balance <= 0;
-          return (
-            <article key={d.id} className="overflow-hidden rounded-2xl border bg-card shadow-card">
-              <header className="flex items-start justify-between gap-2 p-4 pb-3 sm:p-5 sm:pb-3">
-                <div className="flex min-w-0 items-center gap-3">
-                  <span className={cn("grid size-10 shrink-0 place-items-center rounded-xl", done ? "bg-positive-soft text-positive" : "bg-negative-soft text-negative")}>
-                    <UserRound className="size-4" />
-                  </span>
-                  <div className="min-w-0">
-                    <div className="line-clamp-2 text-sm font-semibold sm:text-[15px]">{d.name}</div>
-                    <div className="line-clamp-1 text-xs text-muted-foreground">{done ? "Lunas" : (d.note ?? "Hutang ke orang")}</div>
-                  </div>
-                </div>
-                <div className="flex shrink-0">
-                  <Button variant="ghost" size="icon" aria-label={`Edit ${d.name}`} onClick={() => setDraft({ id: d.id, name: d.name, kind: "PRIBADI", note: d.note ?? "", active: d.active })}>
-                    <Pencil className="size-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Hapus ${d.name}`}
-                    onClick={async () => {
-                      if (await confirm(`Hapus "${d.name}" beserta semua catatannya?`, { confirmLabel: "Hapus", destructive: true })) submit(() => deleteDebt(d.id), "Dihapus");
-                    }}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
-                </div>
-              </header>
-              <div className="px-4 sm:px-5">
-                <div className="text-xs text-muted-foreground">Sisa hutangku</div>
-                <div className={cn("text-2xl font-semibold tracking-tight tabular-nums lg:text-[28px]", d.balance > 0 ? "text-negative" : "text-positive")}>{formatRupiah(d.balance)}</div>
-                <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                  <div>
-                    <dt className="text-xs text-muted-foreground">Total pinjam</dt>
-                    <dd className="font-semibold tabular-nums">{formatRupiah(borrowed)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-muted-foreground">Sudah dibayar</dt>
-                    <dd className="font-semibold text-positive tabular-nums">{formatRupiah(paid)}</dd>
-                  </div>
-                </dl>
-                <Progress className="mt-3" value={borrowed ? paid / borrowed : null} color="var(--positive)" label={`Terbayar ke ${d.name}`} />
-              </div>
-              <div className="mt-3 flex gap-2 px-4 pb-4 sm:px-5">
-                <Button variant="outline" className="h-10 flex-1 rounded-control bg-card" onClick={() => openWith(d.id, "bayar")}>
-                  Catat bayar
-                </Button>
-                <Button variant="outline" className="h-10 flex-1 rounded-control bg-card" onClick={() => openWith(d.id, "pinjam")}>
-                  Pinjam lagi
-                </Button>
-              </div>
-              <Disclosure open={openId === d.id} onOpenChange={(o) => setOpenId(o ? d.id : null)} icon={History} label="Riwayat & catat" hint={`${d.entries.length} catatan`}>
-                <ul className="max-h-72 divide-y overflow-y-auto text-sm">
-                  {d.entries.length === 0 && <li className="px-5 py-3 text-muted-foreground">Belum ada catatan.</li>}
-                  {d.entries.map((e) => (
-                    <li key={e.id} className="group grid grid-cols-[1fr_auto_auto] items-center gap-x-3 px-4 py-2.5 sm:px-5">
-                      <span className="min-w-0">
-                        <span className="line-clamp-2 block font-medium">{e.description}</span>
-                        <span className="block text-xs text-muted-foreground">
-                          {new Date(e.date).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
-                        </span>
-                      </span>
-                      <span className={cn("text-right font-semibold whitespace-nowrap tabular-nums", e.amount < 0 ? "text-positive" : "")}>
-                        {e.amount < 0 ? `−${formatRupiah(-e.amount)}` : `+${formatRupiah(e.amount)}`}
-                      </span>
-                      <span className="flex w-[6.5rem] items-center justify-end gap-0.5 text-xs whitespace-nowrap text-muted-foreground tabular-nums">
-                        {formatRupiah(e.balance)}
-                        <button
-                          type="button"
-                          aria-label="Hapus catatan"
-                          className="grid size-7 shrink-0 place-items-center rounded-lg opacity-60 hover:bg-secondary hover:text-negative group-hover:opacity-100"
-                          onClick={async () => {
-                            if (await confirm(`Hapus catatan "${e.description}"?`, { confirmLabel: "Hapus" })) submit(() => deleteDebtEntry(e.id), "Dihapus");
-                          }}
-                        >
-                          <Trash2 className="size-3.5" />
-                        </button>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-                <EntryForm debtId={d.id} dir={dirs[d.id] ?? "bayar"} setDir={(x) => setDirs((m) => ({ ...m, [d.id]: x }))} />
-              </Disclosure>
-            </article>
-          );
-        })}
-      </div>
-      <DebtFormDialog draft={draft} onClose={() => setDraft(null)} kinds={["PRIBADI"]} />
-    </section>
   );
 }

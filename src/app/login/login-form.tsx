@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/password-input";
 import { login, type LoginState } from "./actions";
 
 export function LoginForm({ from }: { from?: string }) {
@@ -12,13 +13,24 @@ export function LoginForm({ from }: { from?: string }) {
     <form action={action} className="space-y-4">
       {from && <input type="hidden" name="from" value={from} />}
       <div className="space-y-2">
-        <Label htmlFor="password">Password</Label>
+        <Label htmlFor="username">Username</Label>
         <Input
+          id="username"
+          name="username"
+          autoComplete="username"
+          autoCapitalize="none"
+          spellCheck={false}
+          autoFocus
+          required
+          className="h-11 rounded-control text-base"
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="password">Password</Label>
+        <PasswordInput
           id="password"
           name="password"
-          type="password"
           autoComplete="current-password"
-          autoFocus
           required
           className="h-11 rounded-control text-base"
         />

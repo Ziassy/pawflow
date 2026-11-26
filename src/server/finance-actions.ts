@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { db } from "@/lib/db";
+import { currentUserId, db } from "@/lib/db";
 import { DEBT_KIND, GOAL_COLLECTED_MODE } from "@/lib/constants";
 import { addMonths } from "@/lib/format";
 import { buildInstallments } from "@/lib/debt";
@@ -114,9 +114,12 @@ export async function setDebtPlanPaid(planId: number, paid: boolean) {
         // Sudah tertaut ke item bulanan (mis. dari template): cukup centang dibayar
         await tx.transaction.update({ where: { id: plan.transaction.id }, data: { isPaid: true, amount: plan.amount } });
       } else if (paid) {
+        // Cicilan hutang ke orang: "Hutang Budi (2/6)"; kartu/cicilan: nama kartu
+        const seq = plan.debt.kind === "PRIBADI" ? await tx.debtPlan.count({ where: { debtId: plan.debtId, month: { lte: plan.month } } }) : 0;
         await linkOrCreateTransaction(tx, {
           month: plan.month,
-          name: plan.debt.name,
+          name: seq ? `Hutang ${plan.debt.name} (${seq}/${plan.debt.installmentCount})` : plan.debt.name,
+          matchNames: seq ? [plan.debt.name, `Hutang ${plan.debt.name}`] : undefined,
           amount: plan.amount,
           category: "Cicilan",
           source: "DEBT_PLAN",
@@ -134,16 +137,130 @@ export async function setDebtPlanPaid(planId: number, paid: boolean) {
   });
 }
 
-const zEntry = z.object({ date: z.coerce.date(), description: z.string().trim().min(1, "Keterangan wajib diisi").max(200), amount: zMoneySigned });
+// ---------------------------------------------------------------------------
+// Hutang ke orang (PRIBADI): BEBAS = catatan pinjam/bayar, CICILAN = jadwal tetap (DebtPlan)
+// ---------------------------------------------------------------------------
 
-export async function addDebtEntry(debtId: number, input: z.input<typeof zEntry>) {
+const zPersonalDebt = z.discriminatedUnion("repayment", [
+  z.object({
+    repayment: z.literal("CICILAN"),
+    name: zName,
+    principal: zMoney,
+    installmentCount: z.number().int().min(1, "Minimal 1 cicilan").max(120),
+    installmentAmount: zMoney.refine((v) => v > 0, "Nominal per cicilan wajib diisi"),
+    dueDay: z.number().int().min(1).max(31).nullable(),
+    startMonth: zMonth,
+    note: z.string().trim().max(500).nullable().optional(),
+  }),
+  z.object({
+    repayment: z.literal("BEBAS"),
+    name: zName,
+    note: z.string().trim().max(500).nullable().optional(),
+    dueDay: z.number().int().min(1).max(31).nullable().optional(),
+    /** Hanya saat membuat baru: pinjaman awal */
+    initial: z.object({ date: z.coerce.date(), amount: zMoney.refine((v) => v > 0, "Nominal pinjaman wajib diisi") }).optional(),
+  }),
+]);
+
+export async function savePersonalDebt(id: number | null, input: z.input<typeof zPersonalDebt>) {
   return run(async () => {
-    await db.debtEntry.create({ data: { debtId, ...zEntry.parse(input) } });
+    const data = zPersonalDebt.parse(input);
+    await db.$transaction(async (tx) => {
+      const ex = id ? await tx.debt.findUniqueOrThrow({ where: { id }, include: { plans: true } }) : null;
+      if (ex && (ex.kind !== "PRIBADI" || ex.repayment !== data.repayment)) throw new Error("Jenis hutang tidak bisa diubah setelah dibuat");
+      const nextOrder = async () => ((await tx.debt.aggregate({ _max: { sortOrder: true } }))._max.sortOrder ?? 0) + 1;
+
+      if (data.repayment === "BEBAS") {
+        const base = { name: data.name, note: data.note ?? null, dueDay: data.dueDay ?? null };
+        if (ex) {
+          await tx.debt.update({ where: { id: ex.id }, data: base });
+          return;
+        }
+        await tx.debt.create({
+          data: {
+            ...base,
+            kind: "PRIBADI",
+            repayment: "BEBAS",
+            sortOrder: await nextOrder(),
+            entries: data.initial ? { create: [{ date: data.initial.date, description: "Pinjaman awal", amount: data.initial.amount }] } : undefined,
+          },
+        });
+        return;
+      }
+
+      const { repayment, ...rest } = data;
+      const fields = { ...rest, note: rest.note ?? null };
+      const schedule = buildInstallments(rest.startMonth, rest.installmentCount, rest.installmentAmount, addMonths);
+      if (!ex) {
+        await tx.debt.create({
+          data: { ...fields, kind: "PRIBADI", repayment, sortOrder: await nextOrder(), plans: { create: schedule.map(({ month, amount }) => ({ month, amount })) } },
+        });
+        return;
+      }
+      const structural =
+        ex.installmentCount !== rest.installmentCount || ex.installmentAmount !== rest.installmentAmount || ex.startMonth !== rest.startMonth;
+      if (structural && ex.plans.some((p) => p.paid)) {
+        throw new Error("Jadwal tidak bisa diubah karena sudah ada cicilan lunas. Ubah nama/catatan saja.");
+      }
+      await tx.debt.update({ where: { id: ex.id }, data: fields });
+      if (structural) {
+        await tx.debtPlan.deleteMany({ where: { debtId: ex.id } });
+        await tx.debtPlan.createMany({ data: schedule.map(({ month, amount }) => ({ debtId: ex.id, month, amount })) });
+      }
+    });
+  });
+}
+
+const zDebtEntry = z.object({
+  date: z.coerce.date(),
+  description: z.string().trim().max(200),
+  /** Selalu positif; arah dari `direction` */
+  amount: zMoney.refine((v) => v > 0, "Nominal wajib diisi"),
+  direction: z.enum(["PINJAM", "BAYAR"]),
+  /** BAYAR: catat juga sebagai transaksi pengeluaran (Cicilan) di bulan tanggal tsb */
+  recordExpense: z.boolean().default(true),
+});
+
+/** Hutang ke orang jenis BEBAS: pinjam lagi (+) atau aku bayar (−). */
+export async function addDebtEntry(debtId: number, input: z.input<typeof zDebtEntry>) {
+  return run(async () => {
+    const d = zDebtEntry.parse(input);
+    await db.$transaction(async (tx) => {
+      const debt = await tx.debt.findUniqueOrThrow({ where: { id: debtId } });
+      if (debt.kind !== "PRIBADI" || debt.repayment !== "BEBAS") throw new Error("Catatan hanya untuk hutang jenis bayar bebas");
+      const description = d.description || (d.direction === "PINJAM" ? "Pinjam lagi" : "Bayar");
+      const entry = await tx.debtEntry.create({
+        data: { debtId, date: d.date, description, amount: d.direction === "PINJAM" ? d.amount : -d.amount },
+      });
+      if (d.direction === "BAYAR" && d.recordExpense) {
+        // Tanggal disimpan sebagai UTC tengah malam: ambil bulan dari UTC
+        const month = `${d.date.getUTCFullYear()}-${String(d.date.getUTCMonth() + 1).padStart(2, "0")}`;
+        await linkOrCreateTransaction(tx, {
+          month,
+          name: `Bayar hutang ${debt.name}`,
+          matchNames: [debt.name, `Hutang ${debt.name}`],
+          amount: d.amount,
+          category: "Cicilan",
+          source: "DEBT_ENTRY",
+          link: { debtEntryId: entry.id },
+        });
+      }
+    });
   });
 }
 
 export async function deleteDebtEntry(id: number) {
-  return run(() => db.debtEntry.delete({ where: { id } }));
+  return run(async () => {
+    await db.$transaction(async (tx) => {
+      const e = await tx.debtEntry.findUniqueOrThrow({ where: { id }, include: { transaction: true } });
+      if (e.transaction) {
+        // Transaksi otomatis ikut dihapus; transaksi manual yang ditautkan hanya dilepas
+        if (e.transaction.source === "DEBT_ENTRY") await tx.transaction.delete({ where: { id: e.transaction.id } });
+        else await tx.transaction.update({ where: { id: e.transaction.id }, data: { debtEntryId: null } });
+      }
+      await tx.debtEntry.delete({ where: { id } });
+    });
+  });
 }
 
 // ===========================================================================
@@ -397,7 +514,7 @@ export async function setAssetMonthNote(month: string, note: string) {
     zMonth.parse(month);
     const n = note.trim();
     if (!n) await db.assetMonthNote.deleteMany({ where: { month } });
-    else await db.assetMonthNote.upsert({ where: { month }, update: { note: n }, create: { month, note: n } });
+    else await db.assetMonthNote.upsert({ where: { userId_month: { userId: await currentUserId(), month } }, update: { note: n }, create: { month, note: n } });
   });
 }
 
@@ -507,7 +624,8 @@ const zSettings = z.object({
 export async function saveSettings(input: z.input<typeof zSettings>) {
   return run(async () => {
     const data = zSettings.parse(input);
-    await db.appSetting.upsert({ where: { id: 1 }, update: data, create: { id: 1, ...data } });
+    const userId = await currentUserId();
+    await db.appSetting.upsert({ where: { userId }, update: data, create: { userId, ...data } });
   });
 }
 

@@ -3,8 +3,10 @@ import { z } from "zod";
 // Nilai "enum" yang disimpan sebagai String di DB. Validasi di sini.
 
 export const CATEGORY_KIND = ["EXPENSE", "INCOME"] as const;
-export const TX_SOURCE = ["MANUAL", "TEMPLATE", "IMPORT", "DEBT_PLAN", "RECEIVABLE"] as const;
+export const TX_SOURCE = ["MANUAL", "TEMPLATE", "IMPORT", "DEBT_PLAN", "DEBT_ENTRY", "RECEIVABLE"] as const;
 export const DEBT_KIND = ["KARTU", "PAYLATER", "PRIBADI", "LAINNYA"] as const;
+/** Cara bayar hutang ke orang (PRIBADI) & piutang: catatan bebas atau jadwal cicilan tetap. */
+export const REPAYMENT = ["BEBAS", "CICILAN"] as const;
 export const GOAL_COLLECTED_MODE = ["MANUAL", "ASSET_TYPE", "TRANSACTIONS"] as const;
 
 export const zDebtKind = z.enum(DEBT_KIND);

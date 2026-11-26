@@ -83,7 +83,7 @@ export function NewPeriodForm({ defaultMonth, existing }: { defaultMonth: string
           })}
         </div>
       </fieldset>
-      <Button type="submit" className="h-10 w-full rounded-control" disabled={pending || exists || !month}>
+      <Button write type="submit" className="h-10 w-full rounded-control" disabled={pending || exists || !month}>
         {pending ? "Membuat…" : "Buat bulan"}
       </Button>
     </form>

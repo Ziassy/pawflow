@@ -21,18 +21,64 @@ datasource db {
 }
 
 // ---------------------------------------------------------------------------
-// Pengaturan (satu baris, id = 1)
+// Akun. Semua data keuangan dimiliki satu akun (kolom userId) dan tidak terlihat
+// oleh akun lain. Penyaringan userId dipasang otomatis di src/lib/db.ts.
+// ---------------------------------------------------------------------------
+model User {
+  id                Int       @id @default(autoincrement())
+  /// Huruf kecil, untuk login
+  username          String    @unique
+  /// Nama tampilan
+  name              String
+  /// scrypt "salt:hash" (hex). null = akun hasil migrasi, login pertama memakai APP_PASSWORD.
+  passwordHash      String?
+  /// Admin bisa menambah, mereset password, dan menghapus akun lain
+  isAdmin           Boolean   @default(false)
+  /// Naik setiap ganti password / reset: sesi lama otomatis tidak berlaku
+  sessionVersion    Int       @default(1)
+  /// Langganan aktif sampai akhir tanggal ini (WIB, disimpan UTC tengah malam). null = tanpa batas.
+  /// Lewat tanggal: akun hanya bisa melihat data (admin tidak pernah terkunci).
+  subscriptionUntil DateTime?
+  createdAt         DateTime  @default(now())
+
+  setting                AppSetting?
+  categories             Category[]
+  monthlyPeriods         MonthlyPeriod[]
+  transactions           Transaction[]
+  recurringTemplates     RecurringTemplate[]
+  debts                  Debt[]
+  debtSnapshots          DebtSnapshot[]
+  debtPlans              DebtPlan[]
+  debtEntries            DebtEntry[]
+  receivables            Receivable[]
+  receivableEntries      ReceivableEntry[]
+  receivableInstallments ReceivableInstallment[]
+  platforms              Platform[]
+  assetTypes             AssetType[]
+  investments            Investment[]
+  assetSnapshots         AssetSnapshot[]
+  assetMonthNotes        AssetMonthNote[]
+  portfolioTargets       PortfolioTarget[]
+  physicalAssets         PhysicalAsset[]
+  goals                  Goal[]
+  resolutions            Resolution[]
+}
+
+// ---------------------------------------------------------------------------
+// Pengaturan (satu baris per akun)
 // ---------------------------------------------------------------------------
 model AppSetting {
-  id                 Int       @id @default(1)
-  birthDate          DateTime?
+  /// Satu baris pengaturan per akun
+  userId            Int       @id
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  birthDate         DateTime?
   /// Bunga deposito dalam basis poin (750 = 7,5%)
-  depositRateBps     Int       @default(750)
+  depositRateBps    Int       @default(750)
   /// Pajak bunga dalam basis poin (2000 = 20%)
-  interestTaxBps     Int       @default(2000)
+  interestTaxBps    Int       @default(2000)
   /// Ambang peringatan aset turun, basis poin (3000 = 30%)
-  assetDropAlertBps  Int       @default(3000)
-  updatedAt          DateTime  @updatedAt
+  assetDropAlertBps Int       @default(3000)
+  updatedAt         DateTime  @updatedAt
 }
 
 /// Pembatas percobaan login (anti brute force). key = "ip:<alamat>" atau "global".
@@ -48,289 +94,379 @@ model LoginThrottle {
 // Kategori & bulan & transaksi
 // ---------------------------------------------------------------------------
 model Category {
-  id             Int     @id @default(autoincrement())
-  name           String  @unique
+  id        Int    @id @default(autoincrement())
+  userId    Int    @default(0)
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
   /// "EXPENSE" | "INCOME" — hanya "Pemasukan" yang INCOME
-  kind           String  @default("EXPENSE")
+  kind      String @default("EXPENSE")
   /// Target % dari gaji dalam basis poin (4000 = 40%). 0 = tanpa target.
-  targetBps      Int     @default(0)
-  color          String  @default("#64748b")
-  sortOrder      Int     @default(0)
+  targetBps Int    @default(0)
+  color     String @default("#64748b")
+  sortOrder Int    @default(0)
 
-  transactions   Transaction[]
-  templates      RecurringTemplate[]
+  transactions Transaction[]
+  templates    RecurringTemplate[]
+
+  @@unique([userId, name])
 }
 
 model MonthlyPeriod {
-  id            Int      @id @default(autoincrement())
-  /// "YYYY-MM" — unik: satu bulan = satu sumber data
-  month         String   @unique
+  id        Int      @id @default(autoincrement())
+  userId    Int      @default(0)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// "YYYY-MM" — unik per akun: satu bulan = satu sumber data
+  month     String
   /// Gaji bulan ini (Rupiah). null = belum diisi.
-  salary        Int?
+  salary    Int?
   /// true = bulan Rencana; false = Tercatat. Status "Tidak lengkap" diturunkan otomatis.
-  isPlan        Boolean  @default(false)
-  note          String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  isPlan    Boolean  @default(false)
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  transactions  Transaction[]
+  transactions Transaction[]
+
+  @@unique([userId, month])
 }
 
 model Transaction {
-  id          Int      @id @default(autoincrement())
-  periodId    Int
-  period      MonthlyPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
-  name        String
-  categoryId  Int
-  category    Category @relation(fields: [categoryId], references: [id])
+  id         Int           @id @default(autoincrement())
+  userId     Int           @default(0)
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  periodId   Int
+  period     MonthlyPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  name       String
+  categoryId Int
+  category   Category      @relation(fields: [categoryId], references: [id])
   /// Rupiah, selalu positif. Arah ditentukan kategori (Pemasukan = masuk).
   /// null = nominal belum diisi -> bulan ditandai "Tidak lengkap".
-  amount      Int?
+  amount     Int?
   /// Checklist "sudah dibayar". Tetap dihitung di Sisa walau belum dibayar.
-  isPaid      Boolean  @default(false)
-  note        String?
+  isPaid     Boolean       @default(false)
+  note       String?
   /// "MANUAL" | "TEMPLATE" | "IMPORT" | "DEBT_PLAN" | "RECEIVABLE"
-  source      String   @default("MANUAL")
+  source     String        @default("MANUAL")
   /// Kunci unik untuk import idempotent (null untuk input manual)
-  importKey   String?  @unique
+  importKey  String?
 
-  debtPlanId               Int?  @unique
-  debtPlan                 DebtPlan? @relation(fields: [debtPlanId], references: [id], onDelete: SetNull)
-  receivableInstallmentId  Int?  @unique
-  receivableInstallment    ReceivableInstallment? @relation(fields: [receivableInstallmentId], references: [id], onDelete: SetNull)
-  receivableEntryId        Int?  @unique
-  receivableEntry          ReceivableEntry? @relation(fields: [receivableEntryId], references: [id], onDelete: SetNull)
-  goalId                   Int?
-  goal                     Goal? @relation(fields: [goalId], references: [id], onDelete: SetNull)
-  investmentId             Int?
-  investment               Investment? @relation(fields: [investmentId], references: [id], onDelete: SetNull)
+  debtPlanId              Int?                   @unique
+  debtPlan                DebtPlan?              @relation(fields: [debtPlanId], references: [id], onDelete: SetNull)
+  receivableInstallmentId Int?                   @unique
+  receivableInstallment   ReceivableInstallment? @relation(fields: [receivableInstallmentId], references: [id], onDelete: SetNull)
+  receivableEntryId       Int?                   @unique
+  debtEntryId             Int?                   @unique
+  debtEntry               DebtEntry?             @relation(fields: [debtEntryId], references: [id], onDelete: SetNull)
+  receivableEntry         ReceivableEntry?       @relation(fields: [receivableEntryId], references: [id], onDelete: SetNull)
+  goalId                  Int?
+  goal                    Goal?                  @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  investmentId            Int?
+  investment              Investment?            @relation(fields: [investmentId], references: [id], onDelete: SetNull)
 
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
+  @@unique([userId, importKey])
   @@index([periodId])
   @@index([categoryId])
   @@index([goalId])
 }
 
 model RecurringTemplate {
-  id             Int      @id @default(autoincrement())
-  name           String
-  categoryId     Int
-  category       Category @relation(fields: [categoryId], references: [id])
-  defaultAmount  Int?
-  active         Boolean  @default(true)
-  sortOrder      Int      @default(0)
+  id            Int      @id @default(autoincrement())
+  userId        Int      @default(0)
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String
+  categoryId    Int
+  category      Category @relation(fields: [categoryId], references: [id])
+  defaultAmount Int?
+  active        Boolean  @default(true)
+  sortOrder     Int      @default(0)
   /// Opsional: nominal tiap bulan diambil dari rencana bayar hutang ini (Saldo & rencana per bulan)
-  debtId         Int?
-  debt           Debt?    @relation(fields: [debtId], references: [id], onDelete: SetNull)
+  debtId        Int?
+  debt          Debt?    @relation(fields: [debtId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
 }
 
 // ---------------------------------------------------------------------------
 // Hutang (saya berutang)
 // ---------------------------------------------------------------------------
 model Debt {
-  id         Int      @id @default(autoincrement())
-  name       String   @unique
+  id        Int     @id @default(autoincrement())
+  userId    Int     @default(0)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
   /// "KARTU" | "PAYLATER" | "PRIBADI" | "LAINNYA"
-  kind       String
-  active     Boolean  @default(true)
-  note       String?
-  sortOrder  Int      @default(0)
+  kind      String
+  active    Boolean @default(true)
+  note      String?
+  sortOrder Int     @default(0)
 
-  snapshots  DebtSnapshot[]
-  plans      DebtPlan[]
-  entries    DebtEntry[]
-  templates  RecurringTemplate[]
+  /// Hanya hutang ke orang (PRIBADI). "BEBAS" = catatan pinjam/bayar (DebtEntry);
+  /// "CICILAN" = jadwal bulanan tetap, satu baris DebtPlan per cicilan.
+  repayment         String  @default("BEBAS")
+  /// CICILAN: uang yang dipinjam
+  principal         Int     @default(0)
+  installmentCount  Int     @default(0)
+  installmentAmount Int     @default(0)
+  /// Tanggal jatuh tempo dalam bulan (1..31)
+  dueDay            Int?
+  /// Bulan cicilan pertama "YYYY-MM"
+  startMonth        String?
+
+  snapshots DebtSnapshot[]
+  plans     DebtPlan[]
+  entries   DebtEntry[]
+  templates RecurringTemplate[]
+
+  @@unique([userId, name])
 }
 
 /// Saldo sisa hutang per bulan
 model DebtSnapshot {
-  id       Int    @id @default(autoincrement())
-  debtId   Int
-  debt     Debt   @relation(fields: [debtId], references: [id], onDelete: Cascade)
-  month    String
-  balance  Int
+  id      Int    @id @default(autoincrement())
+  userId  Int    @default(0)
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  debtId  Int
+  debt    Debt   @relation(fields: [debtId], references: [id], onDelete: Cascade)
+  month   String
+  balance Int
 
   @@unique([debtId, month])
+  @@index([userId])
 }
 
 /// Rencana bayar per bulan. Saat dibayar -> membuat Transaction kategori Cicilan.
 model DebtPlan {
-  id           Int     @id @default(autoincrement())
-  debtId       Int
-  debt         Debt    @relation(fields: [debtId], references: [id], onDelete: Cascade)
-  month        String
-  amount       Int
-  paid         Boolean @default(false)
-  transaction  Transaction?
+  id          Int          @id @default(autoincrement())
+  userId      Int          @default(0)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  debtId      Int
+  debt        Debt         @relation(fields: [debtId], references: [id], onDelete: Cascade)
+  month       String
+  amount      Int
+  paid        Boolean      @default(false)
+  transaction Transaction?
 
   @@unique([debtId, month])
+  @@index([userId])
 }
 
 /// Hutang ke orang: catatan per tanggal. amount positif = pinjam, negatif = bayar.
 model DebtEntry {
-  id           Int      @id @default(autoincrement())
-  debtId       Int
-  debt         Debt     @relation(fields: [debtId], references: [id], onDelete: Cascade)
-  date         DateTime
-  description  String
-  amount       Int
+  id          Int          @id @default(autoincrement())
+  userId      Int          @default(0)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  debtId      Int
+  debt        Debt         @relation(fields: [debtId], references: [id], onDelete: Cascade)
+  date        DateTime
+  description String
+  amount      Int
+  /// Pembayaran yang dicatat sebagai transaksi pengeluaran (Cicilan)
+  transaction Transaction?
+
+  @@index([userId])
 }
 
 // ---------------------------------------------------------------------------
 // Piutang (orang lain berutang ke saya)
 // ---------------------------------------------------------------------------
 model Receivable {
-  id                 Int      @id @default(autoincrement())
-  name               String
+  id                Int      @id @default(autoincrement())
+  userId            Int      @default(0)
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name              String
   /// "CICILAN" = jadwal cicilan tetap; "BEBAS" = sekali bayar / nyicil bebas (catatan debit-kredit)
-  kind               String   @default("CICILAN")
+  kind              String   @default("CICILAN")
   /// CICILAN: modal yang dipinjamkan. BEBAS: tidak dipakai (dihitung dari catatan).
-  principal          Int      @default(0)
-  installmentCount   Int      @default(0)
-  installmentAmount  Int      @default(0)
+  principal         Int      @default(0)
+  installmentCount  Int      @default(0)
+  installmentAmount Int      @default(0)
   /// Tanggal jatuh tempo dalam bulan (1..31)
-  dueDay             Int?
+  dueDay            Int?
   /// Bulan cicilan pertama "YYYY-MM" (CICILAN)
-  startMonth         String?
-  note               String?
-  createdAt          DateTime @default(now())
+  startMonth        String?
+  note              String?
+  createdAt         DateTime @default(now())
 
-  installments       ReceivableInstallment[]
-  entries            ReceivableEntry[]
+  installments ReceivableInstallment[]
+  entries      ReceivableEntry[]
+
+  @@index([userId])
 }
 
 /// Catatan piutang jenis BEBAS: amount positif = dipinjamkan (debit), negatif = dibayar (kredit).
 model ReceivableEntry {
-  id            Int        @id @default(autoincrement())
-  receivableId  Int
-  receivable    Receivable @relation(fields: [receivableId], references: [id], onDelete: Cascade)
-  date          DateTime
-  description   String
-  amount        Int
-  transaction   Transaction?
+  id           Int          @id @default(autoincrement())
+  userId       Int          @default(0)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  receivableId Int
+  receivable   Receivable   @relation(fields: [receivableId], references: [id], onDelete: Cascade)
+  date         DateTime
+  description  String
+  amount       Int
+  transaction  Transaction?
 
   @@index([receivableId])
+  @@index([userId])
 }
 
 model ReceivableInstallment {
-  id            Int        @id @default(autoincrement())
-  receivableId  Int
-  receivable    Receivable @relation(fields: [receivableId], references: [id], onDelete: Cascade)
-  seq           Int
-  month         String
-  amount        Int
-  paid          Boolean    @default(false)
-  paidAt        DateTime?
-  transaction   Transaction?
+  id           Int          @id @default(autoincrement())
+  userId       Int          @default(0)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  receivableId Int
+  receivable   Receivable   @relation(fields: [receivableId], references: [id], onDelete: Cascade)
+  seq          Int
+  month        String
+  amount       Int
+  paid         Boolean      @default(false)
+  paidAt       DateTime?
+  transaction  Transaction?
 
   @@unique([receivableId, seq])
+  @@index([userId])
 }
 
 // ---------------------------------------------------------------------------
 // Investasi & aset
 // ---------------------------------------------------------------------------
 model Platform {
-  id           Int          @id @default(autoincrement())
-  name         String       @unique
-  sortOrder    Int          @default(0)
-  investments  Investment[]
+  id          Int          @id @default(autoincrement())
+  userId      Int          @default(0)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  sortOrder   Int          @default(0)
+  investments Investment[]
+
+  @@unique([userId, name])
 }
 
 model AssetType {
-  id           Int      @id @default(autoincrement())
-  name         String   @unique
-  color        String   @default("#64748b")
-  sortOrder    Int      @default(0)
+  id        Int    @id @default(autoincrement())
+  userId    Int    @default(0)
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  color     String @default("#64748b")
+  sortOrder Int    @default(0)
 
-  investments  Investment[]
-  snapshots    AssetSnapshot[]
-  targets      PortfolioTarget[]
-  goals        Goal[]
+  investments Investment[]
+  snapshots   AssetSnapshot[]
+  targets     PortfolioTarget[]
+  goals       Goal[]
+
+  @@unique([userId, name])
 }
 
 model Investment {
-  id              Int        @id @default(autoincrement())
-  platformId      Int?
-  platform        Platform?  @relation(fields: [platformId], references: [id])
-  assetTypeId     Int?
-  assetType       AssetType? @relation(fields: [assetTypeId], references: [id])
-  description     String?
-  principal       Int        @default(0)
+  id             Int        @id @default(autoincrement())
+  userId         Int        @default(0)
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platformId     Int?
+  platform       Platform?  @relation(fields: [platformId], references: [id])
+  assetTypeId    Int?
+  assetType      AssetType? @relation(fields: [assetTypeId], references: [id])
+  description    String?
+  principal      Int        @default(0)
   /// null = nilai akhir belum diisi -> profit "–"
-  currentValue    Int?
-  valueUpdatedAt  DateTime?
-  sortOrder       Int        @default(0)
+  currentValue   Int?
+  valueUpdatedAt DateTime?
+  sortOrder      Int        @default(0)
 
-  transactions    Transaction[]
+  transactions Transaction[]
+
+  @@index([userId])
 }
 
 /// Asset Tracker: bulan x jenis aset. Baris tidak ada = kosong (bukan 0).
 model AssetSnapshot {
-  id           Int       @id @default(autoincrement())
-  month        String
-  assetTypeId  Int
-  assetType    AssetType @relation(fields: [assetTypeId], references: [id], onDelete: Cascade)
-  value        Int
+  id          Int       @id @default(autoincrement())
+  userId      Int       @default(0)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  month       String
+  assetTypeId Int
+  assetType   AssetType @relation(fields: [assetTypeId], references: [id], onDelete: Cascade)
+  value       Int
 
   @@unique([month, assetTypeId])
+  @@index([userId])
 }
 
 /// Catatan per bulan Asset Tracker (mis. alasan aset turun > 30%)
 model AssetMonthNote {
-  month  String @id
+  id     Int    @id @default(autoincrement())
+  userId Int    @default(0)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  month  String
   note   String
+
+  @@unique([userId, month])
 }
 
 model PortfolioTarget {
-  id           Int       @id @default(autoincrement())
-  month        String
-  assetTypeId  Int
-  assetType    AssetType @relation(fields: [assetTypeId], references: [id], onDelete: Cascade)
-  amount       Int
+  id          Int       @id @default(autoincrement())
+  userId      Int       @default(0)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  month       String
+  assetTypeId Int
+  assetType   AssetType @relation(fields: [assetTypeId], references: [id], onDelete: Cascade)
+  amount      Int
 
   @@unique([month, assetTypeId])
+  @@index([userId])
 }
 
 model PhysicalAsset {
-  id         Int     @id @default(autoincrement())
-  name       String
-  value      Int
-  note       String?
-  sortOrder  Int     @default(0)
+  id        Int     @id @default(autoincrement())
+  userId    Int     @default(0)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  value     Int
+  note      String?
+  sortOrder Int     @default(0)
+
+  @@index([userId])
 }
 
 // ---------------------------------------------------------------------------
 // Target & FIRE
 // ---------------------------------------------------------------------------
 model Goal {
-  id               Int        @id @default(autoincrement())
-  name             String
-  targetAmount     BigInt
+  id              Int        @id @default(autoincrement())
+  userId          Int        @default(0)
+  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name            String
+  targetAmount    BigInt
   /// Mulai menabung "YYYY-MM" (patokan lama rencana; kosong = dihitung dari bulan berjalan)
-  startMonth       String?
+  startMonth      String?
   /// Tenggat "YYYY-MM"
-  deadline         String?
+  deadline        String?
   /// "MANUAL" | "ASSET_TYPE" | "TRANSACTIONS"
-  collectedMode    String     @default("MANUAL")
-  manualCollected  BigInt     @default(0)
-  assetTypeId      Int?
-  assetType        AssetType? @relation(fields: [assetTypeId], references: [id], onDelete: SetNull)
+  collectedMode   String     @default("MANUAL")
+  manualCollected BigInt     @default(0)
+  assetTypeId     Int?
+  assetType       AssetType? @relation(fields: [assetTypeId], references: [id], onDelete: SetNull)
   /// Urutan "tangga ternak uang"
-  priority         Int        @default(0)
+  priority        Int        @default(0)
   /// Kalkulator FIRE (opsional)
-  targetAge        Int?
-  note             String?
+  targetAge       Int?
+  note            String?
 
-  transactions     Transaction[]
+  transactions Transaction[]
+
+  @@index([userId])
 }
 
 model Resolution {
-  id         Int      @id @default(autoincrement())
-  year       Int
-  text       String
-  done       Boolean  @default(false)
-  sortOrder  Int      @default(0)
+  id        Int     @id @default(autoincrement())
+  userId    Int     @default(0)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  year      Int
+  text      String
+  done      Boolean @default(false)
+  sortOrder Int     @default(0)
+
+  @@index([userId])
 }
