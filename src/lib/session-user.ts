@@ -4,8 +4,18 @@ import { cache } from "react";
 import { cookies } from "next/headers";
 import { baseDb } from "./db-base";
 import { readSessionCookie, verifySessionToken } from "./session";
+import { dateKey, isReadOnly } from "./subscription";
 
-export type SessionUser = { id: number; username: string; name: string; isAdmin: boolean };
+export type SessionUser = {
+  id: number;
+  username: string;
+  name: string;
+  isAdmin: boolean;
+  /** "YYYY-MM-DD" hari terakhir langganan aktif; null = tanpa batas */
+  subscriptionUntil: string | null;
+  /** Langganan berakhir (bukan admin): semua tulis data ditolak di src/lib/db.ts */
+  readOnly: boolean;
+};
 
 /**
  * Cookie -> akun. null bila tidak login, tanda tangan salah, kedaluwarsa,
@@ -29,8 +39,15 @@ async function lookup(token: string | undefined): Promise<SessionUser | null> {
   if (!claims) return null;
   const u = await baseDb.user.findUnique({
     where: { id: claims.userId },
-    select: { id: true, username: true, name: true, isAdmin: true, sessionVersion: true },
+    select: { id: true, username: true, name: true, isAdmin: true, sessionVersion: true, subscriptionUntil: true },
   });
   if (!u || u.sessionVersion !== claims.version) return null;
-  return { id: u.id, username: u.username, name: u.name, isAdmin: u.isAdmin };
+  return {
+    id: u.id,
+    username: u.username,
+    name: u.name,
+    isAdmin: u.isAdmin,
+    subscriptionUntil: u.subscriptionUntil ? dateKey(u.subscriptionUntil) : null,
+    readOnly: isReadOnly(u),
+  };
 }

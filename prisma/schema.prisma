@@ -25,18 +25,21 @@ datasource db {
 // oleh akun lain. Penyaringan userId dipasang otomatis di src/lib/db.ts.
 // ---------------------------------------------------------------------------
 model User {
-  id             Int      @id @default(autoincrement())
+  id                Int       @id @default(autoincrement())
   /// Huruf kecil, untuk login
-  username       String   @unique
+  username          String    @unique
   /// Nama tampilan
-  name           String
+  name              String
   /// scrypt "salt:hash" (hex). null = akun hasil migrasi, login pertama memakai APP_PASSWORD.
-  passwordHash   String?
+  passwordHash      String?
   /// Admin bisa menambah, mereset password, dan menghapus akun lain
-  isAdmin        Boolean  @default(false)
+  isAdmin           Boolean   @default(false)
   /// Naik setiap ganti password / reset: sesi lama otomatis tidak berlaku
-  sessionVersion Int      @default(1)
-  createdAt      DateTime @default(now())
+  sessionVersion    Int       @default(1)
+  /// Langganan aktif sampai akhir tanggal ini (WIB, disimpan UTC tengah malam). null = tanpa batas.
+  /// Lewat tanggal: akun hanya bisa melihat data (admin tidak pernah terkunci).
+  subscriptionUntil DateTime?
+  createdAt         DateTime  @default(now())
 
   setting                AppSetting?
   categories             Category[]

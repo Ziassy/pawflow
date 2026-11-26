@@ -17,11 +17,15 @@ function createClient() {
 
 const globalForPrisma = globalThis as unknown as { prismaBase?: PrismaClient };
 
+// Di dev, client disimpan di globalThis agar hot reload tidak membuka koneksi baru terus.
+// Setelah `prisma generate`, class PrismaClient berganti: instance lama (skema lama) dibuang.
+const cached = globalForPrisma.prismaBase;
+
 /**
  * Client TANPA penyaringan akun. Hanya untuk tabel User & LoginThrottle
  * (login, kelola akun). Data keuangan selalu lewat `db` dari "@/lib/db".
  */
-export const baseDb = globalForPrisma.prismaBase ?? createClient();
+export const baseDb = cached instanceof PrismaClient ? cached : createClient();
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prismaBase = baseDb;
 

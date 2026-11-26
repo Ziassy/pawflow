@@ -88,6 +88,10 @@ Dua jenis:
   milik akun yang sama, jadi id yang ditebak tidak bisa membaca atau mengubah data akun lain.
   Tabel baru wajib punya `userId` dan didaftarkan di `src/lib/tenancy.ts`; `tenancy.test.ts` gagal jika lupa.
 - Akun baru mulai dengan kategori, template, jenis aset, dan platform bawaan.
+- **Masa langganan per akun** (`User.subscriptionUntil`, kosong = tanpa batas). Lewat tanggal itu (WIB), akun
+  hanya bisa melihat data: `src/lib/db.ts` menolak semua operasi tulis, dan banner tampil di setiap halaman
+  (peringatan kuning mulai 7 hari sebelum berakhir). Admin tidak pernah terkunci dan memperpanjang lewat
+  **Kelola akun → ikon kalender** (+1/3/6/12 bulan dari tanggal berakhir, atau dari hari ini bila sudah lewat).
 - Ganti password atau reset oleh admin langsung mengeluarkan perangkat lain akun itu.
 - Data lama dari versi satu pengguna otomatis menjadi milik akun `admin` saat migrasi.
 

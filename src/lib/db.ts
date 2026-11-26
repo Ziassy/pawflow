@@ -4,7 +4,8 @@
 // - baca/ubah/hapus: `where.userId = <akun>` ditambahkan, jadi data akun lain tidak
 //   pernah terbaca atau tersentuh walau id-nya ditebak;
 // - buat: `data.userId = <akun>` diisi (termasuk nested create yang diizinkan);
-// - kolom foreign key (categoryId, debtId, ...) dicek: baris tujuan harus milik akun yang sama.
+// - kolom foreign key (categoryId, debtId, ...) dicek: baris tujuan harus milik akun yang sama;
+// - akun yang masa langganannya berakhir hanya bisa membaca: semua operasi tulis ditolak.
 //
 // Akun diambil dari cookie sesi (getSessionUser). Skrip CLI/seed memakai runAsUser().
 // Login & kelola akun memakai baseDb dari "./db-base" (tanpa penyaringan).
@@ -18,7 +19,11 @@ export { dbProvider };
 type Obj = Record<string, unknown>;
 
 const userStore = new AsyncLocalStorage<number>();
-const txStore = new AsyncLocalStorage<{ tx: unknown; userId: number }>();
+type Scope = { userId: number; readOnly: boolean };
+const txStore = new AsyncLocalStorage<{ tx: unknown; scope: Scope }>();
+
+/** Pesan untuk akun yang langganannya berakhir (tampil di toast). */
+export const READ_ONLY_MESSAGE = "Masa langganan berakhir. Data hanya bisa dilihat; hubungi admin untuk memperpanjang.";
 
 /** Jalankan fn sebagai akun tertentu (skrip CLI, seed, akun baru dari admin). */
 export function runAsUser<T>(userId: number, fn: () => PromiseLike<T>): Promise<T> {
@@ -27,15 +32,22 @@ export function runAsUser<T>(userId: number, fn: () => PromiseLike<T>): Promise<
   return userStore.run(userId, async () => await fn());
 }
 
-/** id akun aktif: runAsUser > transaksi berjalan > cookie sesi. */
-export async function currentUserId(): Promise<number> {
+/**
+ * Akun aktif: runAsUser > transaksi berjalan > cookie sesi.
+ * runAsUser = konteks sistem (skrip, admin membuat/menghapus akun): tidak pernah read-only.
+ */
+async function currentScope(): Promise<Scope> {
   const forced = userStore.getStore();
-  if (forced !== undefined) return forced;
+  if (forced !== undefined) return { userId: forced, readOnly: false };
   const inTx = txStore.getStore();
-  if (inTx) return inTx.userId;
+  if (inTx) return inTx.scope;
   const u = await getSessionUser();
   if (!u) throw new Error("Tidak terautentikasi");
-  return u.id;
+  return { userId: u.id, readOnly: u.readOnly };
+}
+
+export async function currentUserId(): Promise<number> {
+  return (await currentScope()).userId;
 }
 
 const WHERE_OPS = new Set([
@@ -53,6 +65,17 @@ const WHERE_OPS = new Set([
   "delete",
   "deleteMany",
   "upsert",
+]);
+const WRITE_OPS = new Set([
+  "create",
+  "createMany",
+  "createManyAndReturn",
+  "update",
+  "updateMany",
+  "updateManyAndReturn",
+  "upsert",
+  "delete",
+  "deleteMany",
 ]);
 const RELATION_WRITE_KEYS = ["connect", "connectOrCreate", "disconnect", "set"];
 
@@ -110,7 +133,8 @@ const scoped = baseDb.$extends({
     $allModels: {
       async $allOperations({ model, operation, args, query }) {
         if ((UNSCOPED_MODELS as readonly string[]).includes(model)) return query(args);
-        const userId = await currentUserId();
+        const { userId, readOnly } = await currentScope();
+        if (readOnly && WRITE_OPS.has(operation)) throw new Error(READ_ONLY_MESSAGE);
         const a: Obj = { ...((args ?? {}) as Obj) };
         const refs: Refs = new Map();
 
@@ -163,10 +187,12 @@ export type DbTx = Omit<ScopedClient, "$connect" | "$disconnect" | "$on" | "$tra
  */
 async function scopedTransaction(arg: unknown, opts?: unknown) {
   if (typeof arg !== "function") return (scoped.$transaction as (a: unknown, o?: unknown) => Promise<unknown>)(arg, opts);
-  const userId = await currentUserId();
+  const scope = await currentScope();
+  // Gagal sebelum transaksi dibuka: tidak ada yang perlu di-rollback
+  if (scope.readOnly) throw new Error(READ_ONLY_MESSAGE);
   const fn = arg as (tx: unknown) => Promise<unknown>;
   return (scoped.$transaction as (f: (tx: unknown) => Promise<unknown>, o?: unknown) => Promise<unknown>)(
-    (tx) => txStore.run({ tx, userId }, async () => await fn(tx)),
+    (tx) => txStore.run({ tx, scope }, async () => await fn(tx)),
     opts,
   );
 }

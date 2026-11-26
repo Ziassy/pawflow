@@ -19,6 +19,12 @@ const zUsername = z
   .transform(normalizeUsername)
   .refine((u) => USERNAME_RE.test(u), "Username 3-32 karakter: huruf kecil, angka, titik, strip, atau garis bawah");
 const zPassword = z.string().min(8, "Password minimal 8 karakter").max(200);
+/** "YYYY-MM-DD" hari terakhir langganan; null = tanpa batas. Disimpan UTC tengah malam. */
+const zUntil = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Tanggal langganan tidak valid")
+  .transform((s) => new Date(`${s}T00:00:00Z`))
+  .nullable();
 
 /** Pelanggaran unique username dari Prisma (P2002). */
 const isDuplicate = (e: unknown) => typeof e === "object" && e !== null && (e as { code?: string }).code === "P2002";
@@ -66,12 +72,20 @@ export async function changePassword(input: { current: string; next: string }) {
 // Kelola akun (admin)
 // ---------------------------------------------------------------------------
 
-export async function createUser(input: { name: string; username: string; password: string; isAdmin: boolean }) {
+export async function createUser(input: { name: string; username: string; password: string; isAdmin: boolean; subscriptionUntil: string | null }) {
   await requireAdmin();
   return act(async () => {
-    const data = z.object({ name: zName, username: zUsername, password: zPassword, isAdmin: z.boolean() }).parse(input);
+    const data = z
+      .object({ name: zName, username: zUsername, password: zPassword, isAdmin: z.boolean(), subscriptionUntil: zUntil })
+      .parse(input);
     const user = await baseDb.user.create({
-      data: { name: data.name, username: data.username, isAdmin: data.isAdmin, passwordHash: await hashPassword(data.password) },
+      data: {
+        name: data.name,
+        username: data.username,
+        isAdmin: data.isAdmin,
+        subscriptionUntil: data.subscriptionUntil,
+        passwordHash: await hashPassword(data.password),
+      },
     });
     // Akun baru mulai dengan kategori, template, jenis aset, dan platform bawaan
     await runAsUser(user.id, seedUserDefaults);
@@ -84,6 +98,14 @@ export async function resetUserPassword(id: number, password: string) {
     if (id === me.id) throw new Error("Untuk akunmu sendiri, pakai Ganti password");
     const pw = zPassword.parse(password);
     await baseDb.user.update({ where: { id }, data: { passwordHash: await hashPassword(pw), sessionVersion: { increment: 1 } } });
+  });
+}
+
+/** Atur / perpanjang masa langganan akun. null = tanpa batas. */
+export async function setSubscription(id: number, until: string | null) {
+  await requireAdmin();
+  return act(async () => {
+    await baseDb.user.update({ where: { id }, data: { subscriptionUntil: zUntil.parse(until) } });
   });
 }
 
