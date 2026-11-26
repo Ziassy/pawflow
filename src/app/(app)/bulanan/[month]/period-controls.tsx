@@ -60,10 +60,10 @@ export function PeriodControls({
           </div>
           {salaryVal !== salary && (
             <>
-              <Button type="submit" className="h-10 rounded-control" disabled={pending}>
+              <Button write type="submit" className="h-10 rounded-control" disabled={pending}>
                 Simpan
               </Button>
-              <Button type="button" variant="ghost" className="h-10 rounded-control" onClick={() => setSalaryVal(salary)}>
+              <Button write type="button" variant="ghost" className="h-10 rounded-control" onClick={() => setSalaryVal(salary)}>
                 Batal
               </Button>
             </>
@@ -109,7 +109,7 @@ export function PeriodControls({
         >
           <ListPlus className="size-4" /> Lengkapi dari template
         </Button>
-        <Button
+        <Button write
           variant="ghost"
           className="h-9 text-destructive sm:ml-auto"
           disabled={pending}

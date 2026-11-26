@@ -124,7 +124,7 @@ export function BackupRestore() {
             <Button type="button" variant="outline" className="h-11 flex-1 rounded-control bg-card" onClick={() => setOpen(false)}>
               Batal
             </Button>
-            <Button type="submit" variant="destructive" className="h-11 flex-1 rounded-control" disabled={pending || word !== "PULIHKAN"}>
+            <Button write type="submit" variant="destructive" className="h-11 flex-1 rounded-control" disabled={pending || word !== "PULIHKAN"}>
               {pending ? <Loader2 className="size-4 animate-spin" /> : <RotateCcw className="size-4" />} Pulihkan
             </Button>
           </div>

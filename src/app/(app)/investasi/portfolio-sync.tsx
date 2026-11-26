@@ -42,7 +42,7 @@ export function PortfolioToTracker({
       open={dialog.open}
       onOpenChange={dialog.setOpen}
       trigger={
-        <Button variant="outline" size="sm" onClick={dialog.show} disabled={!rows.length}>
+        <Button write variant="outline" size="sm" onClick={dialog.show} disabled={!rows.length}>
           <CalendarArrowDown aria-hidden /> Tulis ke Asset Tracker
         </Button>
       }

@@ -26,7 +26,7 @@ export function PhysicalAssets({ items }: { items: Item[] }) {
       padded={false}
       title="Aset fisik"
       action={
-        <Button className="h-9 rounded-control" onClick={() => setDraft({ id: null, name: "", value: null, note: "" })}>
+        <Button write className="h-9 rounded-control" onClick={() => setDraft({ id: null, name: "", value: null, note: "" })}>
           <Plus className="size-4" /> Tambah
         </Button>
       }
@@ -48,10 +48,10 @@ export function PhysicalAssets({ items }: { items: Item[] }) {
                 {i.note && <span className="block truncate text-xs text-muted-foreground">{i.note}</span>}
               </span>
               <span className="text-sm font-semibold tabular-nums">{formatRupiah(i.value)}</span>
-              <Button variant="ghost" size="icon-sm" aria-label={`Edit ${i.name}`} onClick={() => setDraft({ id: i.id, name: i.name, value: i.value, note: i.note ?? "" })}>
+              <Button write variant="ghost" size="icon-sm" aria-label={`Edit ${i.name}`} onClick={() => setDraft({ id: i.id, name: i.name, value: i.value, note: i.note ?? "" })}>
                 <Pencil className="size-3.5" />
               </Button>
-              <Button
+              <Button write
                 variant="ghost"
                 size="icon-sm"
                 aria-label={`Hapus ${i.name}`}

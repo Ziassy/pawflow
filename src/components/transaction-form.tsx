@@ -192,7 +192,7 @@ export function TransactionForm({
               Batal
             </Button>
           )}
-          <Button type="submit" className="h-10 min-w-24 rounded-control" disabled={formState.isSubmitting}>
+          <Button write type="submit" className="h-10 min-w-24 rounded-control" disabled={formState.isSubmitting}>
             {formState.isSubmitting ? "Menyimpan…" : submitLabel}
           </Button>
         </div>

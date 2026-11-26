@@ -65,7 +65,7 @@ export function AssetTracker({
               onChange={(v) => v && setTarget(v)}
               options={shown.map((m) => ({ value: m, label: formatMonth(m), hint: totals[m] === null ? "Masih kosong" : undefined }))}
             />
-            <Button
+            <Button write
               variant="outline"
               className="h-9 rounded-control"
               disabled={pending}
@@ -159,7 +159,7 @@ function DropNote({ month, prev, curr, note }: { month: string; prev: number | n
         <b>{formatMonth(month)}</b>: {formatRupiah(prev)} → {formatRupiah(curr)} ({formatPercent(changeRatio(prev, curr), 1)})
       </span>
       <Input aria-label={`Alasan ${formatMonth(month)}`} placeholder="Alasan (mis. ambil dana darurat)" className="h-9 flex-1 rounded-control bg-card" value={text} onChange={(e) => setText(e.target.value)} />
-      <Button type="submit" variant="outline" className="h-9 rounded-control bg-card" disabled={pending || text === note}>
+      <Button write type="submit" variant="outline" className="h-9 rounded-control bg-card" disabled={pending || text === note}>
         Simpan
       </Button>
     </form>

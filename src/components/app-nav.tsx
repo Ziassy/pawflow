@@ -8,6 +8,21 @@ import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { logout } from "@/app/login/actions";
 import { NAV_GROUPS, NAV_ITEMS, SIDEBAR_COOKIE, isActive } from "./nav-items";
+import { READ_ONLY_HINT, useReadOnly } from "./read-only";
+
+/**
+ * Link ke halaman pencatatan. Akun read-only: tampil mati (tanpa href, aria-disabled)
+ * karena tidak ada yang bisa dicatat.
+ */
+function WriteLink({ href, className, children, ...rest }: React.ComponentProps<typeof Link> & { href: string }) {
+  const readOnly = useReadOnly();
+  if (!readOnly) return <Link href={href} className={className} {...rest}>{children}</Link>;
+  return (
+    <span role="link" aria-disabled="true" aria-label={rest["aria-label"]} title={READ_ONLY_HINT} className={cn(className, "cursor-not-allowed opacity-50")}>
+      {children}
+    </span>
+  );
+}
 
 function Brand({ collapsed }: { collapsed?: boolean }) {
   return (
@@ -92,7 +107,7 @@ export function Sidebar({ defaultCollapsed = false, user }: { defaultCollapsed?:
         <Brand collapsed={collapsed} />
       </div>
 
-      <Link
+      <WriteLink
         href="/catat"
         title={collapsed ? "Catat transaksi" : undefined}
         className={cn(
@@ -102,7 +117,7 @@ export function Sidebar({ defaultCollapsed = false, user }: { defaultCollapsed?:
       >
         <Plus className="size-4" />
         {!collapsed && "Catat transaksi"}
-      </Link>
+      </WriteLink>
 
       <nav className="mt-5 flex-1 space-y-5 overflow-y-auto" aria-label="Navigasi utama">
         {NAV_GROUPS.map((g) => (
@@ -188,7 +203,7 @@ export function MobileTopBar() {
  */
 function QuickAddButton() {
   return (
-    <Link
+    <WriteLink
       href="/catat"
       aria-label="Catat transaksi"
       title="Catat transaksi"
@@ -201,7 +216,7 @@ function QuickAddButton() {
       )}
     >
       <Plus className="size-6" strokeWidth={2.5} />
-    </Link>
+    </WriteLink>
   );
 }
 

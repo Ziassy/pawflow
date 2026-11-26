@@ -4,6 +4,7 @@ import { useOptimistic, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { ChevronDown, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useReadOnly } from "@/components/read-only";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FormDialog } from "@/components/form-dialog";
 import { useConfirm } from "@/components/confirm-dialog";
@@ -100,6 +101,7 @@ export function TransactionList({
   const isOpen = (id: number, items: Tx[]) => openOverride[id] ?? needsAttention(items);
   const toggle = (id: number, items: Tx[]) => setOpenOverride((o) => ({ ...o, [id]: !isOpen(id, items) }));
   const [dialog, confirm] = useConfirm();
+  const readOnly = useReadOnly();
   const catById = new Map(categories.map((c) => [c.id, c]));
 
   // Kelompokkan per kategori sesuai urutan kategori
@@ -150,6 +152,7 @@ export function TransactionList({
               {items.map((t) => (
                 <li key={t.id} className="flex items-center gap-3 px-4 transition-colors hover:bg-secondary/50">
                   <Checkbox
+                    write
                     checked={t.isPaid}
                     aria-label={`${t.name} sudah dibayar`}
                     className="size-5 rounded-md"
@@ -164,7 +167,8 @@ export function TransactionList({
                   <button
                     type="button"
                     onClick={() => setEditing(t)}
-                    className="flex min-h-14 min-w-0 flex-1 items-center gap-3 py-2 text-left"
+                    disabled={readOnly}
+                    className="flex min-h-14 min-w-0 flex-1 items-center gap-3 py-2 text-left disabled:cursor-default"
                   >
                     <CategoryIcon name={cat.name} color={cat.color} />
                     <span className="min-w-0 flex-1">

@@ -43,7 +43,8 @@ const inputCls = "h-11 rounded-control text-base sm:h-10 sm:text-sm";
 export function MyAccount({ name, username, isAdmin, subscriptionUntil }: { name: string; username: string; isAdmin: boolean; subscriptionUntil: string | null }) {
   const [form, setForm] = useState({ name, username });
   const [pwOpen, setPwOpen] = useState(false);
-  const { pending, submit } = useSubmit();
+  // Profil & password bukan data keuangan: tetap bisa diubah walau langganan berakhir
+  const { pending, submit } = useSubmit({ allowReadOnly: true });
   const dirty = form.name !== name || form.username !== username;
   const status = subscriptionStatus(subscriptionUntil, isAdmin);
 
@@ -96,7 +97,7 @@ export function MyAccount({ name, username, isAdmin, subscriptionUntil }: { name
 
 function ChangePasswordDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const [pw, setPw] = useState({ current: "", next: "", confirm: "" });
-  const { pending, submit } = useSubmit();
+  const { pending, submit } = useSubmit({ allowReadOnly: true });
   const mismatch = pw.confirm.length > 0 && pw.next !== pw.confirm;
   const close = () => {
     setPw({ current: "", next: "", confirm: "" });
@@ -134,7 +135,7 @@ function ChangePasswordDialog({ open, onOpenChange }: { open: boolean; onOpenCha
             </p>
           )}
         </Field>
-        <FormActions pending={pending} onCancel={close} label="Ganti password" disabled={!pw.current || pw.next.length < 8 || pw.next !== pw.confirm} />
+        <FormActions allowReadOnly pending={pending} onCancel={close} label="Ganti password" disabled={!pw.current || pw.next.length < 8 || pw.next !== pw.confirm} />
       </form>
     </FormDialog>
   );

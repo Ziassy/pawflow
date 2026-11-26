@@ -110,7 +110,7 @@ export function DebtList({ debts }: { debts: DebtCard[] }) {
       {dialog}
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-[14px] font-semibold sm:text-[15px]">Daftar kartu & cicilan</h2>
-        <Button className="h-9 rounded-control" onClick={() => setDraft({ id: null, name: "", kind: "KARTU", note: "", active: true })}>
+        <Button write className="h-9 rounded-control" onClick={() => setDraft({ id: null, name: "", kind: "KARTU", note: "", active: true })}>
           <Plus className="size-4" /> Tambah
         </Button>
       </div>
@@ -132,10 +132,10 @@ export function DebtList({ debts }: { debts: DebtCard[] }) {
                   </div>
                 </div>
                 <div className="flex shrink-0">
-                  <Button variant="ghost" size="icon" aria-label={`Edit ${d.name}`} onClick={() => setDraft({ id: d.id, name: d.name, kind: d.kind as DebtKind, note: d.note ?? "", active: d.active })}>
+                  <Button write variant="ghost" size="icon" aria-label={`Edit ${d.name}`} onClick={() => setDraft({ id: d.id, name: d.name, kind: d.kind as DebtKind, note: d.note ?? "", active: d.active })}>
                     <Pencil className="size-4" />
                   </Button>
-                  <Button
+                  <Button write
                     variant="ghost"
                     size="icon"
                     aria-label={`Hapus ${d.name}`}
@@ -294,7 +294,7 @@ export function DebtGrid({
                             onSave={(v) => setDebtPlan(d.id, m, v)}
                           />
                           {plan ? (
-                            <Checkbox
+                            <Checkbox write
                               aria-label={`${d.name} ${formatMonth(m)} sudah dibayar`}
                               checked={plan.paid}
                               className="size-5"

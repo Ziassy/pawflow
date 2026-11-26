@@ -8,6 +8,7 @@ import { Loader2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import type { ActionResult } from "@/server/actions";
+import { READ_ONLY_HINT, useReadOnly } from "@/components/read-only";
 
 /** Kelas dialog modern: kartu besar di desktop, bottom sheet di HP. */
 export const dialogCls = cn(
@@ -100,10 +101,19 @@ export function Field({ label, htmlFor, children, hint, className }: { label: st
 export const selectCls =
   "h-10 w-full rounded-control border bg-background px-3 text-base outline-none focus-visible:ring-3 focus-visible:ring-ring/30 md:text-sm";
 
-/** Hook: jalankan server action, tampilkan toast, tutup dialog jika berhasil. */
-export function useSubmit() {
+/**
+ * Hook: jalankan server action, tampilkan toast, tutup dialog jika berhasil.
+ * Akun read-only: action tidak dikirim sama sekali (tidak ada request ke server),
+ * kecuali `allowReadOnly` (mis. ganti password, yang bukan data keuangan).
+ */
+export function useSubmit({ allowReadOnly = false }: { allowReadOnly?: boolean } = {}) {
   const [pending, start] = useTransition();
-  const submit = (fn: () => Promise<ActionResult>, ok?: string, after?: () => void) =>
+  const readOnly = useReadOnly() && !allowReadOnly;
+  const submit = (fn: () => Promise<ActionResult>, ok?: string, after?: () => void) => {
+    if (readOnly) {
+      toast.error(READ_ONLY_HINT);
+      return;
+    }
     start(async () => {
       const res = await fn();
       if (res.ok) {
@@ -111,7 +121,8 @@ export function useSubmit() {
         after?.();
       } else toast.error("error" in res ? res.error : "Gagal");
     });
-  return { pending, submit };
+  };
+  return { pending, submit, readOnly };
 }
 
 /** Footer dialog: lebar penuh di HP, rata kanan di desktop. */
@@ -122,6 +133,7 @@ export function FormActions({
   extra,
   disabled,
   destructive,
+  allowReadOnly,
 }: {
   pending: boolean;
   onCancel: () => void;
@@ -130,7 +142,10 @@ export function FormActions({
   disabled?: boolean;
   /** Tombol kirim merah untuk aksi yang menghapus permanen. */
   destructive?: boolean;
+  /** Tetap aktif walau akun read-only (mis. ganti password). */
+  allowReadOnly?: boolean;
 }) {
+  const readOnly = useReadOnly() && !allowReadOnly;
   return (
     <div className="sticky bottom-0 -mx-4 -mb-4 mt-2 flex flex-col-reverse gap-2 border-t bg-secondary px-4 py-3 sm:static sm:-mx-6 sm:-mb-6 sm:bg-secondary/50 sm:px-6 sm:py-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="max-sm:self-center">{extra}</div>
@@ -138,7 +153,7 @@ export function FormActions({
         <Button type="button" variant="outline" className="h-11 flex-1 rounded-control bg-card sm:h-10 sm:flex-none" onClick={onCancel}>
           Batal
         </Button>
-        <Button type="submit" variant={destructive ? "destructive" : "default"} className="h-11 min-w-28 flex-1 rounded-control shadow-card sm:h-10 sm:flex-none" disabled={pending || disabled}>
+        <Button type="submit" variant={destructive ? "destructive" : "default"} className="h-11 min-w-28 flex-1 rounded-control shadow-card sm:h-10 sm:flex-none" disabled={pending || disabled || readOnly} title={readOnly ? READ_ONLY_HINT : undefined}>
           {pending ? (
             <>
               <Loader2 className="size-4 animate-spin" /> Menyimpan…

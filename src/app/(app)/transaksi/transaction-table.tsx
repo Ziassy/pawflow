@@ -5,6 +5,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useReadOnly } from "@/components/read-only";
 import { useConfirm } from "@/components/confirm-dialog";
 import { CategoryDot, CategoryIcon, EmptyState } from "@/components/ui-kit";
 import { TransactionForm, type CategoryOption, type GoalOption, type Suggestion } from "@/components/transaction-form";
@@ -39,6 +40,7 @@ export function TransactionTable({
   const [editingId, setEditingId] = useState<number | null>(null);
   const [limit, setLimit] = useState(PAGE);
   const [dialog, confirm] = useConfirm();
+  const readOnly = useReadOnly();
   const catById = new Map(categories.map((c) => [c.id, c]));
 
   if (rows.length === 0) {
@@ -72,7 +74,7 @@ export function TransactionTable({
           return true;
         }}
         extraActions={
-          <Button
+          <Button write
             type="button"
             variant="ghost"
             className="h-10 text-destructive"
@@ -112,7 +114,7 @@ export function TransactionTable({
             <li key={r.id}>{editor(r)}</li>
           ) : (
             <li key={r.id}>
-              <button type="button" onClick={() => setEditingId(r.id)} className="flex w-full items-center gap-3 px-4 py-3 text-left">
+              <button type="button" disabled={readOnly} onClick={() => setEditingId(r.id)} className="flex w-full items-center gap-3 px-4 py-3 text-left disabled:cursor-default">
                 <CategoryIcon name={catById.get(r.categoryId)?.name ?? ""} color={catById.get(r.categoryId)?.color} />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">{r.name}</span>
@@ -148,7 +150,7 @@ export function TransactionTable({
                     <td colSpan={6}>{editor(r)}</td>
                   </tr>
                 ) : (
-                  <tr className="cursor-pointer transition-colors hover:bg-secondary/40" onClick={() => setEditingId(r.id)}>
+                  <tr className={cn("transition-colors", !readOnly && "cursor-pointer hover:bg-secondary/40")} onClick={() => !readOnly && setEditingId(r.id)}>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <Link href={`/bulanan/${r.month}`} onClick={(e) => e.stopPropagation()} className="hover:underline">
                         {formatMonth(r.month)}

@@ -242,7 +242,7 @@ function EntryForm({ item, dir, setDir }: { item: BebasItem; dir: "BAYAR" | "PIN
         ) : (
           <span className="text-xs text-muted-foreground">Hutang {item.name} akan bertambah.</span>
         )}
-        <Button type="submit" className="h-11 flex-1 rounded-control sm:h-10 sm:flex-none" disabled={pending || !amount}>
+        <Button write type="submit" className="h-11 flex-1 rounded-control sm:h-10 sm:flex-none" disabled={pending || !amount}>
           {dir === "BAYAR" ? <ArrowDownLeft className="size-4" /> : <ArrowUpRight className="size-4" />}
           {dir === "BAYAR" ? "Catat pembayaran" : "Catat pinjaman"}
         </Button>
@@ -275,10 +275,10 @@ function CardHeader({ item, onEdit, onDelete, done }: { item: ReceivableItem; on
         </div>
       </div>
       <div className="flex shrink-0">
-        <Button variant="ghost" size="icon" aria-label={`Edit ${item.name}`} onClick={onEdit}>
+        <Button write variant="ghost" size="icon" aria-label={`Edit ${item.name}`} onClick={onEdit}>
           <Pencil className="size-4" />
         </Button>
-        <Button variant="ghost" size="icon" aria-label={`Hapus ${item.name}`} onClick={onDelete}>
+        <Button write variant="ghost" size="icon" aria-label={`Hapus ${item.name}`} onClick={onDelete}>
           <Trash2 className="size-4" />
         </Button>
       </div>
@@ -314,7 +314,7 @@ export function Receivables({ items, current }: { items: ReceivableItem[]; curre
       return n;
     });
   const [dialog, confirm] = useConfirm();
-  const { submit } = useSubmit();
+  const { submit, readOnly } = useSubmit();
 
   const blank: Draft = {
     id: null,
@@ -351,7 +351,7 @@ export function Receivables({ items, current }: { items: ReceivableItem[]; curre
       {dialog}
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-[14px] font-semibold sm:text-[15px]">Daftar piutang</h2>
-        <Button className="h-10 rounded-control" onClick={() => setDraft(blank)}>
+        <Button write className="h-10 rounded-control" onClick={() => setDraft(blank)}>
           <Plus className="size-4" /> Tambah piutang
         </Button>
       </div>
@@ -374,14 +374,14 @@ export function Receivables({ items, current }: { items: ReceivableItem[]; curre
                   <div className="mt-1 text-right text-xs text-muted-foreground">{formatPercent(r.lent ? r.paid / r.lent : null, 0)} terbayar</div>
                 </div>
                 <div className="mt-3 flex gap-2 px-4 pb-4 sm:px-5">
-                  <Button
+                  <Button write
                     variant="outline"
                     className="h-10 flex-1 rounded-control bg-card"
                     onClick={() => openWith(r.id, "BAYAR")}
                   >
                     <ArrowDownLeft className="size-4 text-positive" /> Catat bayar
                   </Button>
-                  <Button variant="outline" className="h-10 flex-1 rounded-control bg-card" onClick={() => openWith(r.id, "PINJAM")}>
+                  <Button write variant="outline" className="h-10 flex-1 rounded-control bg-card" onClick={() => openWith(r.id, "PINJAM")}>
                     <ArrowUpRight className="size-4" /> Pinjam lagi
                   </Button>
                 </div>
@@ -414,7 +414,8 @@ export function Receivables({ items, current }: { items: ReceivableItem[]; curre
                             <button
                               type="button"
                               aria-label="Hapus catatan"
-                              className="grid size-7 shrink-0 place-items-center rounded-lg opacity-60 hover:bg-secondary hover:text-negative group-hover:opacity-100"
+                              disabled={readOnly}
+                              className="grid size-7 shrink-0 place-items-center rounded-lg opacity-60 hover:bg-secondary hover:text-negative group-hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-40"
                               onClick={async () => {
                                 if (await confirm(`Hapus catatan "${e.description}" ${formatRupiah(e.amount)}?`, { confirmLabel: "Hapus", destructive: true }))
                                   submit(() => deleteReceivableEntry(e.id), "Catatan dihapus");
@@ -463,7 +464,7 @@ export function Receivables({ items, current }: { items: ReceivableItem[]; curre
                 {r.installments.map((i) => (
                   <li key={i.id}>
                     <label className={cn("flex min-h-12 cursor-pointer items-center gap-3 px-4 py-2 sm:px-5", i.month === current && !i.paid && "bg-warning-soft/60")}>
-                      <Checkbox
+                      <Checkbox write
                         aria-label={`Cicilan ${i.seq} ${r.name} lunas`}
                         checked={i.paid}
                         className="size-5"

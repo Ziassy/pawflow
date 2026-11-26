@@ -90,7 +90,7 @@ export function PortfolioTable({ rows, platforms, assetTypes }: { rows: Row[]; p
               { value: "tabel", label: "Tabel" },
             ]}
           />
-          <Button className="h-9 rounded-control" onClick={() => setDraft({ id: null, platformId: null, assetTypeId: null, description: "", principal: null, currentValue: null })}>
+          <Button write className="h-9 rounded-control" onClick={() => setDraft({ id: null, platformId: null, assetTypeId: null, description: "", principal: null, currentValue: null })}>
             <Plus className="size-4" /> Tambah
           </Button>
         </div>
@@ -126,10 +126,10 @@ export function PortfolioTable({ rows, platforms, assetTypes }: { rows: Row[]; p
                     </div>
                   </div>
                   <div className="flex opacity-60 transition-opacity group-hover:opacity-100">
-                    <Button variant="ghost" size="icon-sm" aria-label="Edit" onClick={() => edit(r)}>
+                    <Button write variant="ghost" size="icon-sm" aria-label="Edit" onClick={() => edit(r)}>
                       <Pencil className="size-3.5" />
                     </Button>
-                    <Button variant="ghost" size="icon-sm" aria-label="Hapus" onClick={() => remove(r)}>
+                    <Button write variant="ghost" size="icon-sm" aria-label="Hapus" onClick={() => remove(r)}>
                       <Trash2 className="size-3.5" />
                     </Button>
                   </div>
@@ -194,10 +194,10 @@ export function PortfolioTable({ rows, platforms, assetTypes }: { rows: Row[]; p
                     </td>
                     <td className="px-3 py-2.5 text-right text-xs text-muted-foreground">{date(r.updatedAt)}</td>
                     <td className="px-3 py-1.5 text-right whitespace-nowrap">
-                      <Button variant="ghost" size="icon-sm" aria-label="Edit" onClick={() => edit(r)}>
+                      <Button write variant="ghost" size="icon-sm" aria-label="Edit" onClick={() => edit(r)}>
                         <Pencil className="size-3.5" />
                       </Button>
-                      <Button variant="ghost" size="icon-sm" aria-label="Hapus" onClick={() => remove(r)}>
+                      <Button write variant="ghost" size="icon-sm" aria-label="Hapus" onClick={() => remove(r)}>
                         <Trash2 className="size-3.5" />
                       </Button>
                     </td>
