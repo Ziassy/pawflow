@@ -175,12 +175,33 @@ export function Sidebar({ defaultCollapsed = false, user }: { defaultCollapsed?:
 /** Top bar untuk HP. */
 export function MobileTopBar() {
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b bg-background px-4 lg:hidden">
+    <header className="sticky top-0 z-30 flex h-14 items-center border-b bg-background px-4 lg:hidden">
       <Brand />
-      <Link href="/catat" aria-label="Catat transaksi" className="grid size-9 place-items-center rounded-xl bg-primary text-primary-foreground shadow-card">
-        <Plus className="size-4" />
-      </Link>
     </header>
+  );
+}
+
+/**
+ * Tombol catat transaksi melayang untuk HP, tepat di atas slot "Lainnya" di ujung kanan dock:
+ * zona jempol kanan. Tinggi dock = 62px (h-12 + p-1.5 + border), jarak ke dock 0.75rem.
+ * /catat mengarahkan ke halaman bulan berjalan.
+ */
+function QuickAddButton() {
+  return (
+    <Link
+      href="/catat"
+      aria-label="Catat transaksi"
+      title="Catat transaksi"
+      className={cn(
+        "fixed right-[1.125rem] bottom-[calc(env(safe-area-inset-bottom)+0.75rem+62px+0.75rem)] z-40 grid size-14 place-items-center rounded-full",
+        "bg-primary text-primary-foreground shadow-lg ring-4 ring-background outline-none",
+        "transition-transform duration-150 active:scale-95 motion-reduce:transition-none focus-visible:ring-ring/50",
+        // sm: dock 26rem di tengah -> sejajarkan dengan ujung kanannya
+        "sm:right-[calc(50%-13rem+0.375rem)] lg:hidden",
+      )}
+    >
+      <Plus className="size-6" strokeWidth={2.5} />
+    </Link>
   );
 }
 
@@ -228,67 +249,70 @@ export function BottomNav({ user }: { user: NavUser }) {
   const tint = (color: string) => ({ background: `color-mix(in oklab, ${color} 16%, var(--card))` });
 
   return (
-    <nav
-      aria-label="Navigasi utama"
-      // Satu-satunya elemen blur: konten di-scroll di bawah dock, blur menjaga ikon tetap terbaca.
-      className="fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-40 flex gap-1 rounded-full border bg-card/90 p-1.5 shadow-card backdrop-blur-md sm:inset-x-auto sm:left-1/2 sm:w-[26rem] sm:-translate-x-1/2 lg:hidden"
-    >
-      {primary.map(({ href, label, icon, color }) => {
-        const active = isActive(pathname, href);
-        return (
-          <Link key={href} href={href} aria-current={active ? "page" : undefined} className={slotCls(active)} style={active ? tint(color) : undefined}>
-            <DockSlot icon={icon} label={label} color={color} active={active} />
-          </Link>
-        );
-      })}
-      <Sheet open={open} onOpenChange={setOpen}>
-        <SheetTrigger className={slotCls(!!moreItem)} style={moreItem ? tint(moreItem.color) : undefined}>
-          {moreItem ? (
-            <DockSlot icon={moreItem.icon} label={moreItem.short ?? moreItem.label} color={moreItem.color} active />
-          ) : (
-            <DockSlot icon={Menu} label="Lainnya" color="var(--muted-foreground)" active={false} />
-          )}
-        </SheetTrigger>
-        <SheetContent side="bottom" className="rounded-t-3xl pb-[calc(1rem+env(safe-area-inset-bottom))]">
-          <SheetHeader>
-            <SheetTitle>Menu</SheetTitle>
-          </SheetHeader>
-          <div className="mx-4 rounded-2xl bg-secondary/60">
-            <UserChip user={user} />
-          </div>
-          <div className="space-y-4 px-4">
-            {NAV_GROUPS.map((g) => {
-              const items = g.items.filter((i) => !i.mobile);
-              if (!items.length) return null;
-              return (
-                <div key={g.label}>
-                  <div className="mb-1 px-3 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">{g.label}</div>
-                  {items.map(({ href, label, icon: Icon, hint, color }) => (
-                    <Link
-                      key={href}
-                      href={href}
-                      onClick={() => setOpen(false)}
-                      className={cn("flex items-center gap-3 rounded-xl px-3 py-2.5", isActive(pathname, href) ? "bg-accent text-accent-foreground" : "text-foreground")}
-                    >
-                      <span
-                        className="grid size-9 place-items-center rounded-lg"
-                        style={isActive(pathname, href) ? { background: color, color: "white" } : { background: `color-mix(in oklab, ${color} 13%, transparent)`, color }}
+    <>
+      <QuickAddButton />
+      <nav
+        aria-label="Navigasi utama"
+        // Satu-satunya elemen blur: konten di-scroll di bawah dock, blur menjaga ikon tetap terbaca.
+        className="fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-40 flex gap-1 rounded-full border bg-card/90 p-1.5 shadow-card backdrop-blur-md sm:inset-x-auto sm:left-1/2 sm:w-[26rem] sm:-translate-x-1/2 lg:hidden"
+      >
+        {primary.map(({ href, label, icon, color }) => {
+          const active = isActive(pathname, href);
+          return (
+            <Link key={href} href={href} aria-current={active ? "page" : undefined} className={slotCls(active)} style={active ? tint(color) : undefined}>
+              <DockSlot icon={icon} label={label} color={color} active={active} />
+            </Link>
+          );
+        })}
+        <Sheet open={open} onOpenChange={setOpen}>
+          <SheetTrigger className={slotCls(!!moreItem)} style={moreItem ? tint(moreItem.color) : undefined}>
+            {moreItem ? (
+              <DockSlot icon={moreItem.icon} label={moreItem.short ?? moreItem.label} color={moreItem.color} active />
+            ) : (
+              <DockSlot icon={Menu} label="Lainnya" color="var(--muted-foreground)" active={false} />
+            )}
+          </SheetTrigger>
+          <SheetContent side="bottom" className="rounded-t-3xl pb-[calc(1rem+env(safe-area-inset-bottom))]">
+            <SheetHeader>
+              <SheetTitle>Menu</SheetTitle>
+            </SheetHeader>
+            <div className="mx-4 rounded-2xl bg-secondary/60">
+              <UserChip user={user} />
+            </div>
+            <div className="space-y-4 px-4">
+              {NAV_GROUPS.map((g) => {
+                const items = g.items.filter((i) => !i.mobile);
+                if (!items.length) return null;
+                return (
+                  <div key={g.label}>
+                    <div className="mb-1 px-3 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">{g.label}</div>
+                    {items.map(({ href, label, icon: Icon, hint, color }) => (
+                      <Link
+                        key={href}
+                        href={href}
+                        onClick={() => setOpen(false)}
+                        className={cn("flex items-center gap-3 rounded-xl px-3 py-2.5", isActive(pathname, href) ? "bg-accent text-accent-foreground" : "text-foreground")}
                       >
-                        <Icon className="size-4.5" />
-                      </span>
-                      <span>
-                        <span className="block text-[14px] font-medium sm:text-[15px]">{label}</span>
-                        {hint && <span className="block text-xs text-muted-foreground">{hint}</span>}
-                      </span>
-                    </Link>
-                  ))}
-                </div>
-              );
-            })}
-            <LogoutButton className="py-3 text-base" />
-          </div>
-        </SheetContent>
-      </Sheet>
-    </nav>
+                        <span
+                          className="grid size-9 place-items-center rounded-lg"
+                          style={isActive(pathname, href) ? { background: color, color: "white" } : { background: `color-mix(in oklab, ${color} 13%, transparent)`, color }}
+                        >
+                          <Icon className="size-4.5" />
+                        </span>
+                        <span>
+                          <span className="block text-[14px] font-medium sm:text-[15px]">{label}</span>
+                          {hint && <span className="block text-xs text-muted-foreground">{hint}</span>}
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                );
+              })}
+              <LogoutButton className="py-3 text-base" />
+            </div>
+          </SheetContent>
+        </Sheet>
+      </nav>
+    </>
   );
 }

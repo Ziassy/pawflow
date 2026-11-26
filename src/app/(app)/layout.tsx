@@ -22,7 +22,8 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       <Sidebar defaultCollapsed={collapsed} user={{ name: user.name, username: user.username }} />
       <div className="min-w-0 flex-1">
         <MobileTopBar />
-        <main className="mx-auto w-full max-w-6xl px-4 pt-5 pb-32 sm:px-6 md:px-8 md:pt-8 lg:px-10 lg:pt-10 lg:pb-12">{children}</main>
+        {/* pb-44 di HP: ruang untuk dock + tombol catat melayang */}
+        <main className="mx-auto w-full max-w-6xl px-4 pt-5 pb-44 sm:px-6 md:px-8 md:pt-8 lg:px-10 lg:pt-10 lg:pb-12">{children}</main>
       </div>
       <BottomNav user={{ name: user.name, username: user.username }} />
     </div>
