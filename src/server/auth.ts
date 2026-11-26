@@ -1,10 +1,16 @@
 import "server-only";
-import { cookies } from "next/headers";
-import { readSessionCookie, verifySessionToken } from "@/lib/session";
+import { getSessionUser, type SessionUser } from "@/lib/session-user";
 
-/** Lapis kedua di setiap server action (selain proxy). */
-export async function requireAuth() {
-  const jar = await cookies();
-  const token = readSessionCookie((n) => jar.get(n));
-  if (!(await verifySessionToken(token))) throw new Error("Tidak terautentikasi");
+/** Lapis kedua di setiap server action (selain proxy): sesi valid dan akun masih ada. */
+export async function requireAuth(): Promise<SessionUser> {
+  const u = await getSessionUser();
+  if (!u) throw new Error("Tidak terautentikasi");
+  return u;
+}
+
+/** Hanya admin (kelola akun). */
+export async function requireAdmin(): Promise<SessionUser> {
+  const u = await requireAuth();
+  if (!u.isAdmin) throw new Error("Hanya admin yang boleh melakukan ini");
+  return u;
 }

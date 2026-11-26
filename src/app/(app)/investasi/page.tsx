@@ -221,7 +221,7 @@ async function TrackerTab({ assetTypes, colorOf }: { assetTypes: { id: number; n
   const [cells, notes, settings] = await Promise.all([
     db.assetSnapshot.findMany(),
     db.assetMonthNote.findMany(),
-    db.appSetting.findUnique({ where: { id: 1 } }),
+    db.appSetting.findFirst(),
   ]);
   const current = toMonthKey(new Date());
   const used = [...new Set(cells.map((c) => c.month))].sort();

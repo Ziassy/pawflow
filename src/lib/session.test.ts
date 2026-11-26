@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { checkPassword, createSessionToken, verifySessionToken } from "./session";
+import { checkAppPassword, createSessionToken, verifySessionToken } from "./session";
 
 beforeAll(() => {
   process.env.SESSION_SECRET = "x".repeat(40);
@@ -7,22 +7,23 @@ beforeAll(() => {
 });
 
 describe("session", () => {
-  it("token valid bisa diverifikasi", async () => {
-    const t = await createSessionToken();
-    expect(await verifySessionToken(t)).toBe(true);
+  it("token valid membawa userId dan versi sesi", async () => {
+    const t = await createSessionToken({ userId: 7, version: 3 });
+    expect(await verifySessionToken(t)).toEqual({ userId: 7, version: 3 });
   });
-  it("token diubah / kedaluwarsa ditolak", async () => {
-    const t = await createSessionToken(0);
-    expect(await verifySessionToken(t)).toBe(false); // exp sudah lewat
-    const good = await createSessionToken();
-    const [exp, sig] = good.split(".");
-    expect(await verifySessionToken(`${Number(exp) + 1}.${sig}`)).toBe(false);
-    expect(await verifySessionToken(undefined)).toBe(false);
-    expect(await verifySessionToken("abc")).toBe(false);
+  it("token diubah / kedaluwarsa / format lama ditolak", async () => {
+    expect(await verifySessionToken(await createSessionToken({ userId: 1, version: 1 }, 0))).toBeNull(); // exp sudah lewat
+    const [, version, exp, sig] = (await createSessionToken({ userId: 1, version: 1 })).split(".");
+    // Ganti userId tanpa tanda tangan baru = ditolak (tidak bisa menyamar jadi akun lain)
+    expect(await verifySessionToken(`2.${version}.${exp}.${sig}`)).toBeNull();
+    expect(await verifySessionToken(`1.${version}.${Number(exp) + 1}.${sig}`)).toBeNull();
+    expect(await verifySessionToken(`${exp}.${sig}`)).toBeNull(); // token satu-pengguna lama
+    expect(await verifySessionToken(undefined)).toBeNull();
+    expect(await verifySessionToken("abc")).toBeNull();
   });
   it("cek password", async () => {
-    expect(await checkPassword("rahasia")).toBe(true);
-    expect(await checkPassword("salah")).toBe(false);
+    expect(await checkAppPassword("rahasia")).toBe(true);
+    expect(await checkAppPassword("salah")).toBe(false);
   });
 });
 

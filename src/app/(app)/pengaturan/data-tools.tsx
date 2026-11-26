@@ -63,8 +63,8 @@ export function BackupRestore() {
           <DatabaseBackup className="size-5" />
         </span>
         <div className="flex-1 text-sm">
-          <div className="font-semibold">Backup seluruh data</div>
-          <div className="text-muted-foreground">Satu file JSON berisi semua tabel. Simpan di tempat aman.</div>
+          <div className="font-semibold">Backup data akunmu</div>
+          <div className="text-muted-foreground">Satu file JSON berisi semua data akun ini. Simpan di tempat aman.</div>
         </div>
         <a href="/pengaturan/backup" className={cn(buttonVariants(), "h-10 rounded-control")} download>
           <Download className="size-4" /> Unduh backup
@@ -76,7 +76,7 @@ export function BackupRestore() {
           <RotateCcw className="size-5" />
         </span>
         <span className="text-sm font-medium">Pulihkan dari file backup</span>
-        <span className="text-xs text-muted-foreground">Tarik file .json ke sini. Semua data saat ini akan diganti.</span>
+        <span className="text-xs text-muted-foreground">Tarik file .json ke sini. Semua data akunmu akan diganti.</span>
       </DropZone>
 
       <FormDialog
@@ -111,7 +111,7 @@ export function BackupRestore() {
           }}
         >
           <div className="rounded-2xl bg-negative-soft p-4 text-sm text-negative">
-            Semua data saat ini (transaksi, hutang, investasi, target, pengaturan) akan <b>dihapus dan diganti</b> dengan isi file. Unduh backup data
+            Semua data akunmu saat ini (transaksi, hutang, investasi, target, pengaturan) akan <b>dihapus dan diganti</b> dengan isi file. Unduh backup data
             sekarang dulu jika ragu.
           </div>
           <div className="space-y-1.5">

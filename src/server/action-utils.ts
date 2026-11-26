@@ -1,7 +1,7 @@
 import "server-only";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import type { Prisma } from "@/generated/prisma/client";
+import type { DbTx } from "@/lib/db";
 import { toMonthKey } from "@/lib/format";
 import { normalizeName } from "@/lib/money";
 import type { ActionResult } from "./actions";
@@ -26,18 +26,18 @@ export function refresh() {
   revalidatePath("/", "layout");
 }
 
-type Tx = Prisma.TransactionClient;
+type Tx = DbTx;
 
 /** Ambil id bulan; buat jika belum ada (bulan depan = Rencana). */
 export async function ensurePeriod(tx: Tx, month: string): Promise<number> {
-  const p = await tx.monthlyPeriod.findUnique({ where: { month } });
+  const p = await tx.monthlyPeriod.findFirst({ where: { month } });
   if (p) return p.id;
   const created = await tx.monthlyPeriod.create({ data: { month, isPlan: month > toMonthKey(new Date()) } });
   return created.id;
 }
 
 export async function categoryIdByName(tx: Tx, name: string): Promise<number> {
-  const c = await tx.category.findUnique({ where: { name } });
+  const c = await tx.category.findFirst({ where: { name } });
   if (!c) throw new Error(`Kategori "${name}" tidak ada. Jalankan seed.`);
   return c.id;
 }

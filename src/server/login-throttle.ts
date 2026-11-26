@@ -1,5 +1,5 @@
 import "server-only";
-import { db } from "@/lib/db";
+import { baseDb as db } from "@/lib/db-base";
 import { GLOBAL, PER_IP, lockRemaining, recordFailure, type ThrottlePolicy, type ThrottleState } from "@/lib/throttle";
 
 // Disimpan di DB agar berlaku di semua instance server (Vercel). Hanya disentuh saat login.

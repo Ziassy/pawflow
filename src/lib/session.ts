@@ -1,5 +1,7 @@
-// Sesi satu pengguna: cookie berisi "<expiresAtMs>.<hmac>" yang ditandatangani
-// SESSION_SECRET (HMAC-SHA256). Memakai Web Crypto agar jalan di proxy & server.
+// Sesi per akun: cookie berisi "<userId>.<sessionVersion>.<expiresAtMs>.<hmac>" yang
+// ditandatangani SESSION_SECRET (HMAC-SHA256). Memakai Web Crypto agar jalan di proxy & server.
+// sessionVersion dicocokkan dengan User.sessionVersion di server (src/server/session-user.ts),
+// jadi ganti/reset password atau hapus akun langsung mematikan sesi lama.
 
 export const SESSION_COOKIE = "ck_session";
 /** Nama cookie di HTTPS: prefix __Host- memaksa Secure, Path=/, tanpa Domain (tidak bisa ditimpa subdomain). */
@@ -45,21 +47,29 @@ function safeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
-export async function createSessionToken(now = Date.now()): Promise<string> {
-  const exp = String(now + SESSION_MAX_AGE_SEC * 1000);
-  return `${exp}.${await hmacHex(exp)}`;
+export type SessionClaims = { userId: number; version: number };
+
+export async function createSessionToken(claims: SessionClaims, now = Date.now()): Promise<string> {
+  const body = `${claims.userId}.${claims.version}.${now + SESSION_MAX_AGE_SEC * 1000}`;
+  return `${body}.${await hmacHex(body)}`;
 }
 
-export async function verifySessionToken(token: string | undefined, now = Date.now()): Promise<boolean> {
-  if (!token) return false;
-  const [exp, sig] = token.split(".");
-  if (!exp || !sig || !/^\d+$/.test(exp)) return false;
-  if (Number(exp) < now) return false;
-  return safeEqual(sig, await hmacHex(exp));
+/** Cek tanda tangan & kedaluwarsa. Tidak menyentuh DB (dipakai juga di proxy). */
+export async function verifySessionToken(token: string | undefined, now = Date.now()): Promise<SessionClaims | null> {
+  if (!token) return null;
+  const parts = token.split(".");
+  if (parts.length !== 4 || !parts.slice(0, 3).every((p) => /^\d+$/.test(p))) return null;
+  const [userId, version, exp, sig] = parts;
+  if (Number(exp) < now) return null;
+  if (!safeEqual(sig, await hmacHex(`${userId}.${version}.${exp}`))) return null;
+  return { userId: Number(userId), version: Number(version) };
 }
 
-/** Cek password terhadap APP_PASSWORD; hash dulu agar panjang sama. */
-export async function checkPassword(input: string): Promise<boolean> {
+/**
+ * Cek password terhadap APP_PASSWORD; hash dulu agar panjang sama.
+ * Hanya untuk login pertama akun hasil migrasi (passwordHash masih kosong).
+ */
+export async function checkAppPassword(input: string): Promise<boolean> {
   const expected = process.env.APP_PASSWORD;
   if (!expected) throw new Error("APP_PASSWORD belum diset");
   const [a, b] = await Promise.all([hmacHex(`pw:${input}`), hmacHex(`pw:${expected}`)]);

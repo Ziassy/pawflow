@@ -41,7 +41,7 @@ export async function createPeriod(input: z.input<typeof zCreatePeriod>): Promis
     const data = zCreatePeriod.parse(input);
     month = data.month;
     // Aturan 3: satu bulan = satu sumber data
-    if (await db.monthlyPeriod.findUnique({ where: { month } })) {
+    if (await db.monthlyPeriod.findFirst({ where: { month } })) {
       return { ok: false, error: `${formatMonth(month)} sudah ada` };
     }
 

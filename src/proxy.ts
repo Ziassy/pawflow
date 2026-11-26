@@ -3,8 +3,10 @@ import { readSessionCookie, verifySessionToken } from "@/lib/session";
 
 // Semua halaman wajib login, kecuali /login dan aset statis.
 export async function proxy(request: NextRequest) {
-  const ok = await verifySessionToken(readSessionCookie((n) => request.cookies.get(n)));
-  if (ok) return NextResponse.next();
+  // Hanya cek tanda tangan & kedaluwarsa (tanpa DB). Akun dihapus / password diganti
+  // ditolak di server lewat getSessionUser().
+  const claims = await verifySessionToken(readSessionCookie((n) => request.cookies.get(n)));
+  if (claims) return NextResponse.next();
 
   const url = new URL("/login", request.url);
   const from = request.nextUrl.pathname + request.nextUrl.search;

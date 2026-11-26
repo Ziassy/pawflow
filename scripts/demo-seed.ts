@@ -3,6 +3,7 @@
 //   DATABASE_URL="file:./demo.db" npx tsx scripts/demo-seed.ts && DATABASE_URL="file:./demo.db" npm run dev
 import "dotenv/config";
 import { db } from "../src/lib/db";
+import { runAsCliUser } from "./as-user";
 const rnd = (a: number, b: number) => Math.round((a + Math.random() * (b - a)) / 1000) * 1000;
 async function main() {
   const c = Object.fromEntries((await db.category.findMany()).map((x) => [x.name, x.id]));
@@ -25,4 +26,4 @@ async function main() {
       transactions: { create: items.map(([name, cat, amount, paid], k) => ({ name, categoryId: c[cat], amount, isPaid: plan ? false : paid, sortOrder: k })) } } });
   }
 }
-main().finally(() => db.$disconnect());
+runAsCliUser(process.argv.slice(2), main).finally(() => db.$disconnect());

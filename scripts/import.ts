@@ -5,6 +5,7 @@
 //   npm run import -- --force     # timpa baris hasil import sebelumnya dengan isi CSV
 //   npm run import -- --prune     # hapus baris hasil import yang sudah tidak ada di CSV
 //   npm run import -- --dir path  # folder lain
+//   npm run import -- --user nama # ke akun lain (default: admin)
 //
 // Idempotent: setiap baris punya kunci import. Menjalankan ulang tidak menggandakan data,
 // dan (tanpa --force) tidak menimpa perubahan yang kamu buat di aplikasi.
@@ -15,6 +16,7 @@ import "dotenv/config";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { db } from "../src/lib/db";
+import { runAsCliUser } from "./as-user";
 import { IMPORT_FILES, runImport, type Counter, type ImportFileKey } from "./import-runner";
 import type { Issue } from "../src/lib/import/plan";
 import { formatMonth, formatRupiah } from "../src/lib/format";
@@ -90,7 +92,7 @@ async function main() {
   process.exitCode = ok ? 0 : 1;
 }
 
-main()
+runAsCliUser(args, main)
   .catch((e) => {
     console.error(e);
     process.exitCode = 1;

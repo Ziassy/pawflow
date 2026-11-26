@@ -27,6 +27,30 @@ function Brand({ collapsed }: { collapsed?: boolean }) {
   );
 }
 
+type NavUser = { name: string; username: string };
+
+/** Siapa yang sedang masuk. Inisial sebagai penanda, bukan foto. */
+function UserChip({ user, collapsed }: { user: NavUser; collapsed?: boolean }) {
+  const initial = user.name.trim().charAt(0).toUpperCase() || "?";
+  return (
+    <div className={cn("flex items-center gap-3 px-3 py-2", collapsed && "justify-center px-0")} title={collapsed ? `${user.name} (@${user.username})` : undefined}>
+      <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-full bg-accent text-sm font-semibold text-accent-foreground">
+        {initial}
+      </span>
+      {collapsed ? (
+        <span className="sr-only">
+          Masuk sebagai {user.name} (@{user.username})
+        </span>
+      ) : (
+        <span className="min-w-0 leading-tight">
+          <span className="block truncate text-sm font-medium">{user.name}</span>
+          <span className="block truncate text-xs text-muted-foreground">@{user.username}</span>
+        </span>
+      )}
+    </div>
+  );
+}
+
 function LogoutButton({ className, collapsed }: { className?: string; collapsed?: boolean }) {
   return (
     <form action={logout}>
@@ -47,7 +71,7 @@ function LogoutButton({ className, collapsed }: { className?: string; collapsed?
 }
 
 /** Sidebar desktop: menu berkelompok, bisa diciutkan (diingat di cookie). */
-export function Sidebar({ defaultCollapsed = false }: { defaultCollapsed?: boolean }) {
+export function Sidebar({ defaultCollapsed = false, user }: { defaultCollapsed?: boolean; user: NavUser }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
 
@@ -129,6 +153,7 @@ export function Sidebar({ defaultCollapsed = false }: { defaultCollapsed?: boole
       </nav>
 
       <div className="space-y-1 border-t pt-3">
+        <UserChip user={user} collapsed={collapsed} />
         <button
           type="button"
           onClick={toggle}
@@ -185,7 +210,7 @@ function DockSlot({ icon: Icon, label, color, active }: { icon: React.ComponentT
  * item lain cuma ikon. Item non-utama ada di sheet "Lainnya", dan slot itu
  * menampilkan halaman aktifnya bila pengguna sedang di salah satu halaman tersebut.
  */
-export function BottomNav() {
+export function BottomNav({ user }: { user: NavUser }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const primary = NAV_ITEMS.filter((i) => i.mobile);
@@ -228,6 +253,9 @@ export function BottomNav() {
           <SheetHeader>
             <SheetTitle>Menu</SheetTitle>
           </SheetHeader>
+          <div className="mx-4 rounded-2xl bg-secondary/60">
+            <UserChip user={user} />
+          </div>
           <div className="space-y-4 px-4">
             {NAV_GROUPS.map((g) => {
               const items = g.items.filter((i) => !i.mobile);

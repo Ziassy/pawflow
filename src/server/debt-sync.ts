@@ -1,5 +1,5 @@
 import "server-only";
-import type { Prisma } from "@/generated/prisma/client";
+import type { DbTx } from "@/lib/db";
 import { normalizeName } from "@/lib/money";
 
 /*
@@ -9,7 +9,7 @@ import { normalizeName } from "@/lib/money";
  * Aturan nominal: rencana bulan itu jika ada, kalau tidak nominal default template.
  */
 
-type Tx = Prisma.TransactionClient;
+type Tx = DbTx;
 
 export type PlannedItem = { debtPlanId: number; amount: number; isPaid: boolean };
 
@@ -41,7 +41,7 @@ export async function linkPlanToTemplateItem(tx: Tx, planId: number): Promise<bo
   if (plan.transaction) return false;
   const templates = await tx.recurringTemplate.findMany({ where: { debtId: plan.debtId }, select: { name: true } });
   if (!templates.length) return false;
-  const period = await tx.monthlyPeriod.findUnique({ where: { month: plan.month }, select: { id: true } });
+  const period = await tx.monthlyPeriod.findFirst({ where: { month: plan.month }, select: { id: true } });
   if (!period) return false;
   const names = new Set(templates.map((t) => normalizeName(t.name)));
   const candidates = await tx.transaction.findMany({

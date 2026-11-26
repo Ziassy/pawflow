@@ -3,8 +3,9 @@
 > Track your spending, find your flow.
 
 
-Aplikasi web satu pengguna pengganti Google Spreadsheet: gaji, pengeluaran, hutang, piutang,
+Aplikasi web pengganti Google Spreadsheet: gaji, pengeluaran, hutang, piutang,
 investasi, aset, dan target keuangan (FIRE). Bahasa Indonesia, Rupiah tanpa desimal.
+Mendukung beberapa akun; tiap akun punya data keuangan sendiri (lihat **Akun** di bawah).
 
 **Stack:** Next.js 16 (App Router) · TypeScript · Tailwind CSS 4 · shadcn/ui (Base UI) ·
 Prisma 7 (SQLite lokal / PostgreSQL produksi) · Zod · React Hook Form · Recharts · Vitest.
@@ -24,9 +25,12 @@ Prisma 7 (SQLite lokal / PostgreSQL produksi) · Zod · React Hook Form · Recha
 cp .env.example .env        # isi APP_PASSWORD dan SESSION_SECRET (openssl rand -hex 32)
 npm install
 npm run db:migrate          # buat tabel di dev.db
-npm run db:seed             # kategori, template, jenis aset, platform (aman diulang)
+npm run db:seed             # akun admin + kategori, template, jenis aset, platform (aman diulang)
 npm run dev                 # http://localhost:3000
 ```
+
+Masuk pertama kali dengan username `admin` dan password = `APP_PASSWORD`. Password itu lalu disimpan
+sebagai milik akun admin; ganti di **Pengaturan → Akun saya**.
 
 Buka dari HP di jaringan yang sama: `npm run dev -- -H 0.0.0.0`, lalu akses `http://<IP-laptop>:3000`.
 Di HP bisa “Tambahkan ke Layar Utama” (PWA) agar tampil seperti aplikasi.
@@ -40,7 +44,7 @@ Di HP bisa “Tambahkan ke Layar Utama” (PWA) agar tampil seperti aplikasi.
 | `npm run dev` / `build` / `start` | pengembangan / build produksi / jalankan build |
 | `npm run lint` · `npm run typecheck` · `npm test` | ESLint · TypeScript · unit test (Vitest) |
 | `npm run db:migrate` · `db:deploy` · `db:seed` · `db:studio` | migrasi dev · migrasi produksi · data awal · lihat DB |
-| `npm run import` | import CSV dari folder `data/` (lihat di bawah) |
+| `npm run import` | import CSV dari folder `data/` ke akun admin; `-- --user nama` untuk akun lain |
 | `npm run db:use-postgres` · `db:use-sqlite` | ganti database SQLite ⇄ PostgreSQL |
 
 ## Import data spreadsheet lama
@@ -75,11 +79,25 @@ Dua jenis:
   jadi transaksi **Pemasukan** di bulannya.
 - **Cicilan tetap** — jadwal bulanan dengan nominal sama; centang lunas per cicilan.
 
+## Akun
+
+- Akun dibuat oleh **admin** di **Pengaturan → Kelola akun** (tidak ada pendaftaran publik). Admin juga bisa
+  mereset password, menjadikan/mencabut admin, dan menghapus akun (beserta seluruh datanya, wajib ketik username).
+- **Data terpisah per akun.** Semua tabel keuangan punya kolom `userId`. `src/lib/db.ts` menambahkan
+  filter akun ke setiap query secara otomatis dan memeriksa bahwa setiap foreign key (kategori, bulan, hutang, …)
+  milik akun yang sama, jadi id yang ditebak tidak bisa membaca atau mengubah data akun lain.
+  Tabel baru wajib punya `userId` dan didaftarkan di `src/lib/tenancy.ts`; `tenancy.test.ts` gagal jika lupa.
+- Akun baru mulai dengan kategori, template, jenis aset, dan platform bawaan.
+- Ganti password atau reset oleh admin langsung mengeluarkan perangkat lain akun itu.
+- Data lama dari versi satu pengguna otomatis menjadi milik akun `admin` saat migrasi.
+
 ## Backup & pulihkan
 
-**Pengaturan → Backup & pulihkan.** “Unduh backup” menghasilkan satu file JSON berisi semua tabel.
-“Pulihkan” mengganti seluruh data dengan isi file (satu transaksi: jika gagal, tidak ada yang berubah;
-wajib ketik `PULIHKAN`). Format sama untuk SQLite dan PostgreSQL, jadi dipakai juga untuk pindah server.
+**Pengaturan → Backup & pulihkan.** “Unduh backup” menghasilkan satu file JSON berisi semua data **akun yang sedang masuk**.
+“Pulihkan” mengganti seluruh data akun itu dengan isi file (satu transaksi: jika gagal, tidak ada yang berubah;
+wajib ketik `PULIHKAN`); data akun lain tidak tersentuh. Id dibuat ulang saat pulihkan, jadi file dari akun lain
+atau dari versi satu pengguna bisa dipulihkan ke akun mana pun. Format sama untuk SQLite dan PostgreSQL,
+jadi dipakai juga untuk pindah server.
 
 ## Deploy ke Vercel + Neon
 
@@ -112,9 +130,11 @@ Kembali ke SQLite lokal: `npm run db:use-sqlite` dan `DATABASE_URL="file:./dev.d
 
 ## Keamanan
 
-- **Login satu pengguna**: password dari `APP_PASSWORD`, dibandingkan waktu-konstan. Sesi = cookie httpOnly bertanda tangan
-  HMAC (`SESSION_SECRET`), 30 hari, `SameSite=Lax`; di HTTPS memakai nama `__Host-…` (wajib Secure, tidak bisa ditimpa subdomain).
-- **Produksi menolak password lemah**: jika `APP_PASSWORD` masih default atau < 6 karakter, login dinonaktifkan.
+- **Login per akun**: username + password (hash scrypt per akun). Sesi = cookie httpOnly bertanda tangan
+  HMAC (`SESSION_SECRET`) berisi id akun dan versi sesi, 30 hari, `SameSite=Lax`; di HTTPS memakai nama `__Host-…`
+  (wajib Secure, tidak bisa ditimpa subdomain). Server mencocokkan versi sesi dengan database di setiap request.
+- **`APP_PASSWORD` hanya untuk login pertama akun admin hasil migrasi/seed.** Di produksi, jika masih default
+  atau < 6 karakter, login pertama itu dinonaktifkan.
 - **Anti brute force**: 5 salah / 15 menit per IP → dikunci 15 menit (berlipat sampai 24 jam); 30 salah / 15 menit
   dari semua IP → login dikunci sementara. Saat terkunci, password tidak diperiksa sama sekali.
 - **Setiap halaman & server action diperiksa** (proxy + `requireAuth`); server action juga dilindungi CSRF oleh Next.js (cek Origin).
@@ -125,6 +145,7 @@ Kembali ke SQLite lokal: `npm run db:use-sqlite` dan `DATABASE_URL="file:./dev.d
 - Upload backup dibatasi 4 MB dan divalidasi; pulihkan berjalan dalam satu transaksi.
 
 **Wajib sebelum online:** ganti `APP_PASSWORD` (≥ 6 karakter, bukan password default) dan isi `SESSION_SECRET` acak (`openssl rand -hex 32`).
+**Keluar dari satu akun di semua perangkat:** ganti password akun itu (atau admin mereset-nya).
 **Keluar dari semua perangkat:** ganti `SESSION_SECRET` lalu deploy ulang — semua sesi lama langsung tidak berlaku.
 File backup JSON berisi seluruh data keuangan: simpan di tempat aman. Jangan commit `.env`, `*.db`, atau `data/*.csv`
 (sudah di `.gitignore`).

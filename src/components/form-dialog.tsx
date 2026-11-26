@@ -121,12 +121,15 @@ export function FormActions({
   label = "Simpan",
   extra,
   disabled,
+  destructive,
 }: {
   pending: boolean;
   onCancel: () => void;
   label?: string;
   extra?: React.ReactNode;
   disabled?: boolean;
+  /** Tombol kirim merah untuk aksi yang menghapus permanen. */
+  destructive?: boolean;
 }) {
   return (
     <div className="sticky bottom-0 -mx-4 -mb-4 mt-2 flex flex-col-reverse gap-2 border-t bg-secondary px-4 py-3 sm:static sm:-mx-6 sm:-mb-6 sm:bg-secondary/50 sm:px-6 sm:py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -135,7 +138,7 @@ export function FormActions({
         <Button type="button" variant="outline" className="h-11 flex-1 rounded-control bg-card sm:h-10 sm:flex-none" onClick={onCancel}>
           Batal
         </Button>
-        <Button type="submit" className="h-11 min-w-28 flex-1 rounded-control shadow-card sm:h-10 sm:flex-none" disabled={pending || disabled}>
+        <Button type="submit" variant={destructive ? "destructive" : "default"} className="h-11 min-w-28 flex-1 rounded-control shadow-card sm:h-10 sm:flex-none" disabled={pending || disabled}>
           {pending ? (
             <>
               <Loader2 className="size-4 animate-spin" /> Menyimpan…

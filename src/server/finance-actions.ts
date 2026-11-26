@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { db } from "@/lib/db";
+import { currentUserId, db } from "@/lib/db";
 import { DEBT_KIND, GOAL_COLLECTED_MODE } from "@/lib/constants";
 import { addMonths } from "@/lib/format";
 import { buildInstallments } from "@/lib/debt";
@@ -397,7 +397,7 @@ export async function setAssetMonthNote(month: string, note: string) {
     zMonth.parse(month);
     const n = note.trim();
     if (!n) await db.assetMonthNote.deleteMany({ where: { month } });
-    else await db.assetMonthNote.upsert({ where: { month }, update: { note: n }, create: { month, note: n } });
+    else await db.assetMonthNote.upsert({ where: { userId_month: { userId: await currentUserId(), month } }, update: { note: n }, create: { month, note: n } });
   });
 }
 
@@ -507,7 +507,8 @@ const zSettings = z.object({
 export async function saveSettings(input: z.input<typeof zSettings>) {
   return run(async () => {
     const data = zSettings.parse(input);
-    await db.appSetting.upsert({ where: { id: 1 }, update: data, create: { id: 1, ...data } });
+    const userId = await currentUserId();
+    await db.appSetting.upsert({ where: { userId }, update: data, create: { userId, ...data } });
   });
 }
 
