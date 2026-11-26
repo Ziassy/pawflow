@@ -11,7 +11,7 @@ import { DatePicker, MonthPicker } from "@/components/date-pickers";
 import { Field, FormActions, FormDialog, useSubmit } from "@/components/form-dialog";
 import { RupiahInput } from "@/components/rupiah-input";
 import { EmptyState, Progress, Segmented } from "@/components/ui-kit";
-import { formatMonth, formatPercent, formatRupiah, toMonthKey } from "@/lib/format";
+import { formatDay, formatMonth, formatPercent, formatRupiah, todayKey, toMonthKey } from "@/lib/format";
 import type { LedgerRow, ReceivableSummary } from "@/lib/debt";
 import { cn } from "@/lib/utils";
 import { addReceivableEntry, deleteReceivable, deleteReceivableEntry, saveReceivable, setInstallmentPaid } from "@/server/finance-actions";
@@ -49,11 +49,6 @@ type Draft = {
   initialDate: string;
 };
 
-const today = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-};
-const fmtDate = (d: string) => new Date(d).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
 
 function ReceivableForm({ draft, onClose }: { draft: Draft | null; onClose: () => void }) {
   const [d, setD] = useState(draft);
@@ -197,7 +192,7 @@ function ReceivableForm({ draft, onClose }: { draft: Draft | null; onClose: () =
 /** Form cepat catatan piutang bebas: Dia bayar / Pinjam lagi. */
 function EntryForm({ item, dir, setDir }: { item: BebasItem; dir: "BAYAR" | "PINJAM"; setDir: (d: "BAYAR" | "PINJAM") => void }) {
   const [amount, setAmount] = useState<number | null>(null);
-  const [date, setDate] = useState(today());
+  const [date, setDate] = useState(todayKey);
   const [desc, setDesc] = useState("");
   const [income, setIncome] = useState(true);
   const { pending, submit } = useSubmit();
@@ -332,7 +327,7 @@ export function Receivables({ items, current }: { items: ReceivableItem[]; curre
     startMonth: toMonthKey(new Date()),
     note: "",
     initialAmount: null,
-    initialDate: today(),
+    initialDate: todayKey(),
   };
   const edit = (r: ReceivableItem) =>
     setDraft({
@@ -409,7 +404,7 @@ export function Receivables({ items, current }: { items: ReceivableItem[]; curre
                         <li key={e.id} className="group grid grid-cols-[1fr_auto_auto] items-center gap-x-3 px-4 py-2.5 text-sm sm:px-5">
                           <span className="min-w-0">
                             <span className="line-clamp-2 block font-medium">{e.description}</span>
-                            <span className="block text-xs text-muted-foreground">{fmtDate(e.date)}</span>
+                            <span className="block text-xs text-muted-foreground">{formatDay(e.date)}</span>
                           </span>
                           <span className={cn("text-right font-semibold whitespace-nowrap tabular-nums", e.credit ? "text-positive" : "text-foreground")}>
                             {e.credit ? `−${formatRupiah(e.credit)}` : `+${formatRupiah(e.debit)}`}

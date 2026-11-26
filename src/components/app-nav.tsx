@@ -17,7 +17,7 @@ function Brand({ collapsed }: { collapsed?: boolean }) {
       {!collapsed && (
         <span className="leading-tight">
           <span className="block text-base font-bold tracking-tight sm:text-[17px]">
-            <span className="text-[#14285a]">Paw</span>
+            <span className="text-foreground">Paw</span>
             <span className="text-primary">Flow</span>
           </span>
           <span className="block text-[11px] text-muted-foreground">Find your flow</span>

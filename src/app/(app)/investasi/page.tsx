@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/page-header";
 import { HeroCard, Panel, StatCard, TabLinks } from "@/components/ui-kit";
 import { Donut, PercentBars } from "@/components/charts";
 import { db } from "@/lib/db";
-import { addMonths, formatMonth, formatPercent, formatRupiah, isMonthKey, toMonthKey } from "@/lib/format";
+import { addMonths, formatInstantDay, formatMonth, formatPercent, formatRupiah, isMonthKey, toMonthKey } from "@/lib/format";
 import { allocationByType, assetMonthTotals, profitRatio, valueByAssetType } from "@/lib/investment";
 import { OTHER_COLOR, seriesColor } from "@/lib/category-theme";
 import { cn } from "@/lib/utils";
@@ -102,7 +102,7 @@ async function PortfolioTab({ colorOf }: { colorOf: Map<string, string> }) {
             </div>
             <div>
               <dt className="text-xs text-white/75">Update terakhir</dt>
-              <dd className="mt-1 font-semibold">{lastUpdate ? lastUpdate.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : "–"}</dd>
+              <dd className="mt-1 font-semibold">{lastUpdate ? formatInstantDay(lastUpdate) : "–"}</dd>
             </div>
           </dl>
         </HeroCard>

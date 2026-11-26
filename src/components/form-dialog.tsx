@@ -78,7 +78,7 @@ export function FormDialog({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className={cn(dialogCls, wide ? "sm:max-w-xl" : "sm:max-w-md")}>
           <DialogHero icon={icon} title={title} description={description} tone={tone} />
-          <div className="max-h-[75dvh] overflow-y-auto px-4 pt-4 pb-4 sm:max-h-[70dvh] sm:px-6 sm:pt-5 sm:pb-6 [&_form]:space-y-3 sm:[&_form]:space-y-5">{children}</div>
+          <div className="max-h-[75dvh] overflow-y-auto px-4 pt-4 pb-4 sm:max-h-[70dvh] sm:px-6 sm:pt-5 sm:pb-6 [&_form]:space-y-3 sm:[&_form]:space-y-5 max-sm:[&_form]:pb-16">{children}</div>
         </DialogContent>
       </Dialog>
     </>

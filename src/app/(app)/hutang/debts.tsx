@@ -16,7 +16,7 @@ import { EmptyState, Progress, Segmented } from "@/components/ui-kit";
 import { DEBT_KIND, DEBT_KIND_LABEL } from "@/lib/constants";
 import { useRouter } from "next/navigation";
 import { signalNavigate } from "@/components/nav-progress";
-import { addMonths, formatMonth, formatRupiah } from "@/lib/format";
+import { addMonths, formatDay, formatMonth, formatRupiah, todayKey } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   addDebtEntry,
@@ -353,9 +353,7 @@ type Personal = {
 };
 
 function EntryForm({ debtId, dir, setDir }: { debtId: number; dir: "pinjam" | "bayar"; setDir: (d: "pinjam" | "bayar") => void }) {
-  const t = new Date();
-  const today = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
-  const [date, setDate] = useState(today);
+  const [date, setDate] = useState(todayKey);
   const [desc, setDesc] = useState("");
   const [amount, setAmount] = useState<number | null>(null);
   const { pending, submit } = useSubmit();
@@ -481,7 +479,7 @@ export function PersonalDebts({ debts }: { debts: Personal[] }) {
                       <span className="min-w-0">
                         <span className="line-clamp-2 block font-medium">{e.description}</span>
                         <span className="block text-xs text-muted-foreground">
-                          {new Date(e.date).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
+                          {formatDay(e.date)}
                         </span>
                       </span>
                       <span className={cn("text-right font-semibold whitespace-nowrap tabular-nums", e.amount < 0 ? "text-positive" : "")}>

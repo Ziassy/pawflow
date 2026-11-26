@@ -9,7 +9,7 @@ import { Dropdown } from "@/components/dropdown";
 import { Field, FormActions, FormDialog, useSubmit } from "@/components/form-dialog";
 import { RupiahInput } from "@/components/rupiah-input";
 import { EmptyState, Panel, Segmented } from "@/components/ui-kit";
-import { formatPercent, formatRupiah } from "@/lib/format";
+import { formatInstantDay, formatPercent, formatRupiah } from "@/lib/format";
 import { profitRatio } from "@/lib/investment";
 import { cn } from "@/lib/utils";
 import { deleteInvestment, saveInvestment } from "@/server/finance-actions";
@@ -68,7 +68,7 @@ export function PortfolioTable({ rows, platforms, assetTypes }: { rows: Row[]; p
     if (await confirm(`Hapus investasi "${r.description ?? r.assetType ?? ""}"${r.platform ? ` di ${r.platform}` : ""}?`, { confirmLabel: "Hapus", destructive: true }))
       submit(() => deleteInvestment(r.id), "Dihapus");
   };
-  const date = (d: string | null) => (d ? new Date(d).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : "–");
+  const date = (d: string | null) => (d ? formatInstantDay(d) : "–");
   const preview = draft ? profitRatio(draft.principal ?? 0, draft.currentValue) : null;
 
   return (

@@ -85,7 +85,7 @@ export function CategoryIcon({ name, color, size = "md" }: { name: string; color
     <span
       aria-hidden
       className={cn("grid shrink-0 place-items-center rounded-full", size === "md" ? "size-9" : "size-7")}
-      style={{ background: `color-mix(in oklab, ${t.color} 14%, white)`, color: t.color }}
+      style={{ background: `color-mix(in oklab, ${t.color} 14%, var(--card))`, color: t.color }}
     >
       <Icon className={size === "md" ? "size-4" : "size-3.5"} />
     </span>
