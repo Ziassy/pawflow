@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { Geist_Mono, Inter } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
+import { ServiceWorkerRegister } from "@/components/pwa";
 import { COLOR_THEME_COOKIE, colorThemeStyleObj, colorThemeDarkScript } from "@/lib/color-themes";
 import "./globals.css";
 
@@ -21,6 +22,8 @@ export const metadata: Metadata = {
   description: "PawFlow — Track your spending, find your flow.",
   robots: { index: false, follow: false },
   appleWebApp: { capable: true, title: "PawFlow", statusBarStyle: "default" },
+  // iOS jangan mengubah nominal uang jadi tautan telepon
+  formatDetection: { telephone: false },
 };
 
 export const viewport: Viewport = {
@@ -41,6 +44,13 @@ export const viewport: Viewport = {
  */
 const IOS_VIEWPORT = `(function(){var n=navigator;if(!(/iPad|iPhone|iPod/.test(n.userAgent)||(n.platform==="MacIntel"&&n.maxTouchPoints>1)))return;function f(){var m=document.querySelector('meta[name=viewport]');if(m&&m.content.indexOf("maximum-scale")<0)m.content+=",maximum-scale=1";}f();document.addEventListener("DOMContentLoaded",f);})();`;
 
+/**
+ * Tangkap event "beforeinstallprompt" Chrome Android sedini mungkin.
+ * Event ini bisa muncul sebelum React selesai dimuat, jadi disimpan di window untuk tombol Pasang
+ * (InstallApp di components/pwa.tsx).
+ */
+const PWA_HEAD_SCRIPT = `(function(){window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();window.__pawflowInstall=e;window.dispatchEvent(new Event("pawflow:installable"));});window.addEventListener("appinstalled",function(){window.__pawflowInstall=null;window.dispatchEvent(new Event("pawflow:installable"));});})();`;
+
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const jar = await cookies();
   const colorId = jar.get(COLOR_THEME_COOKIE)?.value;
@@ -49,7 +59,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   // suppressHydrationWarning mencegah React complain kalau ekstensi mengubah atribut.
   const themeStyle = colorThemeStyleObj(colorId);
 
-  // Script dark-mode reactivity + iOS viewport masuk di awal <body>,
+  // Script dark-mode reactivity + iOS viewport + PWA masuk di awal <body>,
   // bukan di <head>, agar ekstensi browser yang menyisipkan elemen ke <head>
   // tidak menggeser posisi elemen kita dan menyebabkan hydration mismatch.
   const darkScript = colorThemeDarkScript(colorId);
@@ -62,13 +72,15 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       suppressHydrationWarning
     >
       <body className="min-h-full bg-background text-foreground">
-        {/* Blocking scripts di awal body: dark mode reactivity + iOS viewport fix */}
+        {/* Blocking scripts di awal body: dark mode reactivity, iOS viewport fix, PWA install prompt */}
         <script suppressHydrationWarning dangerouslySetInnerHTML={{ __html: darkScript }} />
         <script suppressHydrationWarning dangerouslySetInnerHTML={{ __html: IOS_VIEWPORT }} />
+        <script suppressHydrationWarning dangerouslySetInnerHTML={{ __html: PWA_HEAD_SCRIPT }} />
         <ThemeProvider>
           {children}
           <Toaster richColors position="top-center" />
         </ThemeProvider>
+        <ServiceWorkerRegister />
       </body>
     </html>
   );

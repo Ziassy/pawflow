@@ -25,7 +25,17 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: [...lanHosts, "*.local"],
   poweredByHeader: false,
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      // Service worker selalu dicek ulang agar versi baru langsung terpasang
+      {
+        source: "/sw.js",
+        headers: [
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+          { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+        ],
+      },
+    ];
   },
   // App pribadi berbasis DB: semua halaman dinamis, tanpa cacheComponents.
   serverExternalPackages: ["better-sqlite3"],
