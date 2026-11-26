@@ -51,7 +51,7 @@ export default async function MonthPage({ params }: PageProps<"/bulanan/[month]"
 
       <div className="grid gap-5 lg:grid-cols-3 md:gap-6">
         {/* Hero: sisa */}
-        <section className="relative overflow-hidden rounded-3xl bg-linear-135 from-hero-from to-hero-to p-6 text-primary-foreground shadow-card lg:col-span-2 md:p-7">
+        <section className="relative overflow-hidden rounded-3xl bg-linear-135 from-hero-from to-hero-to p-6 text-white shadow-card lg:col-span-2 md:p-7">
           <div
             aria-hidden
             className="pointer-events-none absolute -top-24 -right-16 size-72 rounded-full opacity-30 blur-3xl"
