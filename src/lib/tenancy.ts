@@ -18,6 +18,7 @@ export const OWNED_FKS: Record<string, Record<string, string>> = {
     debtPlanId: "DebtPlan",
     receivableInstallmentId: "ReceivableInstallment",
     receivableEntryId: "ReceivableEntry",
+    debtEntryId: "DebtEntry",
     goalId: "Goal",
     investmentId: "Investment",
   },

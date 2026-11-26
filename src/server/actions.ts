@@ -63,7 +63,7 @@ export async function createPeriod(input: z.input<typeof zCreatePeriod>): Promis
       salary = prev.salary;
       // Transaksi otomatis (hutang/piutang) tidak disalin agar tidak dobel
       items = prev.transactions
-        .filter((t) => t.source !== "DEBT_PLAN" && t.source !== "RECEIVABLE")
+        .filter((t) => t.source !== "DEBT_PLAN" && t.source !== "DEBT_ENTRY" && t.source !== "RECEIVABLE")
         .map((t) => ({ name: t.name, categoryId: t.categoryId, amount: t.amount, note: t.note, source: "MANUAL" }));
     }
 

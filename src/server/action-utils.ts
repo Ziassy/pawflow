@@ -53,15 +53,15 @@ export async function linkOrCreateTransaction(
     name: string;
     amount: number;
     category: string;
-    source: "DEBT_PLAN" | "RECEIVABLE";
-    link: { debtPlanId: number } | { receivableInstallmentId: number } | { receivableEntryId: number };
+    source: "DEBT_PLAN" | "DEBT_ENTRY" | "RECEIVABLE";
+    link: { debtPlanId: number } | { debtEntryId: number } | { receivableInstallmentId: number } | { receivableEntryId: number };
     matchNames?: string[];
   },
 ) {
   const periodId = await ensurePeriod(tx, opts.month);
   const categoryId = await categoryIdByName(tx, opts.category);
   const candidates = await tx.transaction.findMany({
-    where: { periodId, categoryId, amount: opts.amount, debtPlanId: null, receivableInstallmentId: null, receivableEntryId: null },
+    where: { periodId, categoryId, amount: opts.amount, debtPlanId: null, debtEntryId: null, receivableInstallmentId: null, receivableEntryId: null },
   });
   const names = new Set([opts.name, ...(opts.matchNames ?? [])].map(normalizeName));
   const match = candidates.find((t) => names.has(normalizeName(t.name)));

@@ -152,6 +152,8 @@ model Transaction {
   receivableInstallmentId Int?                   @unique
   receivableInstallment   ReceivableInstallment? @relation(fields: [receivableInstallmentId], references: [id], onDelete: SetNull)
   receivableEntryId       Int?                   @unique
+  debtEntryId             Int?                   @unique
+  debtEntry               DebtEntry?             @relation(fields: [debtEntryId], references: [id], onDelete: SetNull)
   receivableEntry         ReceivableEntry?       @relation(fields: [receivableEntryId], references: [id], onDelete: SetNull)
   goalId                  Int?
   goal                    Goal?                  @relation(fields: [goalId], references: [id], onDelete: SetNull)
@@ -199,6 +201,18 @@ model Debt {
   note      String?
   sortOrder Int     @default(0)
 
+  /// Hanya hutang ke orang (PRIBADI). "BEBAS" = catatan pinjam/bayar (DebtEntry);
+  /// "CICILAN" = jadwal bulanan tetap, satu baris DebtPlan per cicilan.
+  repayment         String  @default("BEBAS")
+  /// CICILAN: uang yang dipinjam
+  principal         Int     @default(0)
+  installmentCount  Int     @default(0)
+  installmentAmount Int     @default(0)
+  /// Tanggal jatuh tempo dalam bulan (1..31)
+  dueDay            Int?
+  /// Bulan cicilan pertama "YYYY-MM"
+  startMonth        String?
+
   snapshots DebtSnapshot[]
   plans     DebtPlan[]
   entries   DebtEntry[]
@@ -239,14 +253,16 @@ model DebtPlan {
 
 /// Hutang ke orang: catatan per tanggal. amount positif = pinjam, negatif = bayar.
 model DebtEntry {
-  id          Int      @id @default(autoincrement())
-  userId      Int      @default(0)
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id          Int          @id @default(autoincrement())
+  userId      Int          @default(0)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   debtId      Int
-  debt        Debt     @relation(fields: [debtId], references: [id], onDelete: Cascade)
+  debt        Debt         @relation(fields: [debtId], references: [id], onDelete: Cascade)
   date        DateTime
   description String
   amount      Int
+  /// Pembayaran yang dicatat sebagai transaksi pengeluaran (Cicilan)
+  transaction Transaction?
 
   @@index([userId])
 }
